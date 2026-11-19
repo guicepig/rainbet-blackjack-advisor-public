@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rainbet Originals — Offline Dice Simulator</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #10131b;
+      color: #eef1f7;
+      --panel: #191e29;
+      --line: #303849;
+      --muted: #a7b0c1;
+      --accent: #84e0bb;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 32px 16px; }
+    main { max-width: 860px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.5rem, 4vw, 2.2rem); }
+    h2 { margin: 0 0 14px; font-size: 1.15rem; }
+    p { line-height: 1.55; }
+    .muted, .fine { color: var(--muted); }
+    .fine { font-size: .88rem; }
+    .badge {
+      display: inline-block; margin-bottom: 14px; padding: 5px 9px;
+      border: 1px solid #42745f; border-radius: 999px;
+      color: var(--accent); font-size: .78rem; font-weight: 700; letter-spacing: .04em;
+    }
+    .panel {
+      margin-top: 18px; padding: 20px; border: 1px solid var(--line);
+      border-radius: 14px; background: var(--panel);
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+    label { display: block; color: var(--muted); font-size: .9rem; }
+    input {
+      display: block; width: 100%; margin-top: 7px; padding: 11px 12px;
+      border: 1px solid var(--line); border-radius: 8px; background: #10141d;
+      color: #fff; font: inherit;
+    }
+    button {
+      margin: 14px 8px 0 0; padding: 11px 15px; border: 0; border-radius: 8px;
+      background: var(--accent); color: #10221a; font: inherit; font-weight: 750;
+      cursor: pointer;
+    }
+    button.secondary { border: 1px solid var(--line); background: #252c39; color: #eef1f7; }
+    button:focus-visible, input:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    .decision { border-left: 4px solid #f0c36d; padding-left: 14px; }
+    .decision.stop { border-left-color: #ff8e8e; }
+    .decision h2 { margin-bottom: 6px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin-top: 14px; }
+    .stat { padding: 12px; border: 1px solid var(--line); border-radius: 9px; }
+    .stat span { display: block; color: var(--muted); font-size: .82rem; }
+    .stat strong { display: block; margin-top: 5px; font-size: 1.1rem; }
+    a { color: var(--accent); }
+    .warning { color: #f3d9a0; }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">OFFLINE SIMULATOR · NO ACCOUNT CONNECTION</span>
+    <h1>Rainbet Originals: Dice decision simulator</h1>
+    <p class="muted">A local-only model of Rainbet’s published Dice figures. It cannot access Rainbet, accept credentials, or place bets.</p>
+
+    <section class="panel" aria-labelledby="inputs-title">
+      <h2 id="inputs-title">Set up a hypothetical session</h2>
+      <div class="grid">
+        <label>Starting balance ($)
+          <input id="balance" type="number" min="0.01" step="0.01" value="100">
+        </label>
+        <label>Stake per simulated round ($)
+          <input id="stake" type="number" min="0.01" step="0.01" value="1">
+        </label>
+        <label>Win chance (%)
+          <input id="chance" type="number" min="0.1" max="99.9" step="0.1" value="50">
+        </label>
+        <label>Stop after this much loss ($)
+          <input id="lossLimit" type="number" min="0.01" step="0.01" value="10">
+        </label>
+        <label>Stop after this much profit ($); 0 disables
+          <input id="profitTarget" type="number" min="0" step="0.01" value="10">
+        </label>
+        <label>Maximum simulated rounds
+          <input id="roundLimit" type="number" min="1" max="100000" step="1" value="1000">
+        </label>
+      </div>
+      <button id="evaluate">Evaluate</button>
+      <button class="secondary" id="simulate">Run offline simulation</button>
+      <p class="fine">The simulation uses ordinary browser randomness for illustration only; it does not reproduce Rainbet’s RNG or predict actual outcomes. It will not start a simulated stake that could cross the loss limit; one win may cross the profit target.</p>
+    </section>
+
+    <section class="panel decision" id="decision" aria-live="polite">
+      <h2 id="decisionTitle">Decision: skip a real-money wager</h2>
+      <p id="decisionText">The published Dice model has a negative expected return. A simulated or historical streak does not change the next outcome.</p>
+      <div class="stats" id="stats">
+        <div class="stat"><span>Advertised RTP</span><strong>99%</strong></div>
+        <div class="stat"><span>House edge</span><strong>1%</strong></div>
+        <div class="stat"><span>Advertised multiplier</span><strong>1.98× at 50% chance</strong></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>How to read this</h2>
+      <p>Rainbet’s Dice page advertises 99% RTP. In this simplified model, a win chance of <em>p</em>% pays a total multiplier of approximately <em>99 ÷ p</em>. The expected net result is therefore about <strong>−1% of each dollar wagered</strong> over many rounds, not a forecast for any one session.</p>
+      <p class="fine">This is an educational model based on Rainbet’s published figures, not a verified copy of its live game. RTP, game rules, rounding, and availability may differ. No strategy can be inferred from this simulator that guarantees a profit.</p>
+      <p class="fine">Source: <a href="https://rainbet.com/casino/originals/dice" target="_blank" rel="noopener noreferrer">Rainbet Dice page</a>. The page’s own <a href="https://rainbet.com/provably-fair/game-verifier/dice" target="_blank" rel="noopener noreferrer">verifier</a> explains verification of past Original results.</p>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const byId = (id) => document.getElementById(id);
+      const money = (value) => "$" + value.toFixed(2);
+      const decision = byId("decision");
+
+      function getSettings() {
+        const settings = {
+          balance: Number(byId("balance").value),
+          stake: Number(byId("stake").value),
+          chance: Number(byId("chance").value),
+          lossLimit: Number(byId("lossLimit").value),
+          profitTarget: Number(byId("profitTarget").value),
+          roundLimit: Number(byId("roundLimit").value)
+        };
+        if (!Number.isFinite(settings.balance) || settings.balance <= 0 ||
+            !Number.isFinite(settings.stake) || settings.stake <= 0 ||
+            !Number.isFinite(settings.chance) || settings.chance < 0.1 || settings.chance > 99.9 ||
+            !Number.isFinite(settings.lossLimit) || settings.lossLimit <= 0 ||
+            !Number.isFinite(settings.profitTarget) || settings.profitTarget < 0 ||
+            !Number.isInteger(settings.roundLimit) || settings.roundLimit < 1 || settings.roundLimit > 100000) {
+          throw new Error("Enter valid positive amounts, a win chance from 0.1% to 99.9%, and a round limit from 1 to 100,000.");
+        }
+        return settings;
+      }
+
+      function showDecision(title, text, isStop) {
+        byId("decisionTitle").textContent = title;
+        byId("decisionText").textContent = text;
+        decision.classList.toggle("stop", Boolean(isStop));
+      }
+
+      function evaluate() {
+        try {
+          const s = getSettings();
+          const multiplier = 99 / s.chance;
+          const expectedNetPerRound = -s.stake * 0.01;
+          byId("stats").innerHTML =
+            '<div class="stat"><span>Advertised RTP</span><strong>99%</strong></div>' +
+            '<div class="stat"><span>House edge</span><strong>1%</strong></div>' +
+            '<div class="stat"><span>Approx. total payout on a win</span><strong>' + multiplier.toFixed(2) + '×</strong></div>' +
+            '<div class="stat"><span>Expected net per simulated round</span><strong>' + money(expectedNetPerRound) + '</strong></div>';
+
+          if (s.stake > s.balance) {
+            showDecision("Decision: stop", "The hypothetical stake exceeds the starting balance. Do not increase the stake to compensate.", true);
+          } else {
+            showDecision("Decision: skip a real-money wager", "This model has negative expected value at every displayed win chance. If you run the simulator, it will only generate hypothetical results and stop at your preset limits.", false);
+          }
+        } catch (error) {
+          showDecision("Check the inputs", error.message, true);
+        }
+      }
+
+      function simulate() {
+        try {
+          const s = getSettings();
+          const p = s.chance / 100;
+          const multiplier = 0.99 / p;
+          const lossFloor = Math.max(0, s.balance - s.lossLimit);
+          let balance = s.balance;
+          let wagered = 0;
+          let wins = 0;
+          let rounds = 0;
+          let stopReason = "maximum round limit reached";
+
+          while (rounds < s.roundLimit && balance >= s.stake) {
+            if (balance <= lossFloor) {
+              stopReason = "loss limit reached";
+              break;
+            }
+            if (balance - s.stake < lossFloor) {
+              stopReason = "next stake would exceed loss limit";
+              break;
+            }
+            if (s.profitTarget > 0 && balance >= s.balance + s.profitTarget) {
+              stopReason = "profit target reached";
+              break;
+            }
+
+            balance -= s.stake;
+            wagered += s.stake;
+            rounds++;
+            if (Math.random() < p) {
+              balance += s.stake * multiplier;
+              wins++;
+            }
+          }
+
+          if (balance < s.stake && rounds < s.roundLimit) stopReason = "not enough simulated balance for another stake";
+          else if (balance <= lossFloor) stopReason = "loss limit reached";
+          else if (s.profitTarget > 0 && balance >= s.balance + s.profitTarget) stopReason = "profit target reached";
+
+          const net = balance - s.balance;
+          const expectedNet = -wagered * 0.01;
+          showDecision("Simulation complete — " + stopReason, "Illustrative run only. This result is random and says nothing about future outcomes. For a real-money wager, the model still says skip.", true);
+          byId("stats").innerHTML =
+            '<div class="stat"><span>Simulated rounds</span><strong>' + rounds + '</strong></div>' +
+            '<div class="stat"><span>Simulated wins</span><strong>' + wins + '</strong></div>' +
+            '<div class="stat"><span>Amount wagered</span><strong>' + money(wagered) + '</strong></div>' +
+            '<div class="stat"><span>Ending simulated balance</span><strong>' + money(balance) + '</strong></div>' +
+            '<div class="stat"><span>Simulated net</span><strong>' + money(net) + '</strong></div>' +
+            '<div class="stat"><span>Expected net at advertised RTP</span><strong>' + money(expectedNet) + '</strong></div>';
+        } catch (error) {
+          showDecision("Check the inputs", error.message, true);
+        }
+      }
+
+      byId("evaluate").addEventListener("click", evaluate);
+      byId("simulate").addEventListener("click", simulate);
+    }());
+  </script>
+</body>
+</html>

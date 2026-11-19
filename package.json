@@ -1,0 +1,13 @@
+{
+  "name": "rainbet-blackjack-advisor",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node rainbet-gemini-server.cjs",
+    "test": "node --test rainbet-original-blackjack-advisor.test.cjs"
+  }
+}
