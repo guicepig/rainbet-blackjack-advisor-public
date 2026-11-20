@@ -746,9 +746,17 @@ test("settings provide private account, appearance, interface, privacy, practice
   assert.match(renderConfig, /PLAUSIBLE_STATS_API_KEY/);
   assert.match(renderConfig, /PLAUSIBLE_SITE_ID/);
   assert.match(renderConfig, /SITE_STATS_ADMIN_EMAILS/);
+  assert.match(renderConfig, /STRIPE_SECRET_KEY/);
+  assert.match(renderConfig, /STRIPE_WEBHOOK_SECRET/);
+  assert.match(renderConfig, /STRIPE_TRIAL_PRICE_ID/);
+  assert.match(renderConfig, /STRIPE_MONTHLY_PRICE_ID/);
 });
 
 test("public policy disclosures cover local data, optional providers, and current lack of payments", () => {
+  assert.match(html, /Start \$1 \/ 7-day trial/);
+  assert.match(html, /Upgrade for \$10\/month/);
+  assert.match(mainScript, /api\/billing\/trial/);
+  assert.match(mainScript, /api\/billing\/checkout/);
   assert.match(html, /id="privacyPolicyDialog"/);
   assert.match(html, /id="welcomeDialog"/);
   assert.match(html, /id="welcomePrivacyAccept"/);
@@ -766,7 +774,7 @@ test("public policy disclosures cover local data, optional providers, and curren
   assert.match(html, /at least 30 chronological predictions/);
   assert.match(html, /positive approximate paired Brier-improvement lower bound/);
   assert.match(html, /Never use these amounts or progressions for real-money wagers/);
-  assert.match(html, /No paid membership or payment feature is currently offered/);
+  assert.match(html, /Optional membership features are processed through Stripe/);
   assert.match(html, /Optional shared hand statistics/);
   assert.match(html, /Existing history is not uploaded/);
   assert.match(html, /cannot be tied back to an individual/);

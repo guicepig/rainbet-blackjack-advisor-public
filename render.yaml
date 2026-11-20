@@ -19,3 +19,13 @@ services:
         sync: false
       - key: SITE_STATS_ADMIN_EMAILS
         sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_TRIAL_PRICE_ID
+        sync: false
+      - key: STRIPE_MONTHLY_PRICE_ID
+        sync: false
+      - key: APP_PUBLIC_URL
+        sync: false

@@ -2244,7 +2244,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       <button type="button" class="secondary" data-close-dialog="privacyPolicyDialog" aria-label="Close privacy policy">×</button>
     </div>
     <p class="fine">Last updated: November 18, 2026. Operator: an individual in Montreal, Quebec, Canada. Privacy contact: <a href="mailto:guicepig@gmail.com">guicepig@gmail.com</a>.</p>
-    <p>This policy explains what this blackjack strategy reference handles. It does not connect to Rainbet or read Rainbet account data. No paid membership or payment feature is currently offered.</p>
+    <p>This policy explains what this blackjack strategy reference handles. It does not connect to Rainbet or read Rainbet account data. Optional membership features are processed through Stripe and require a Google sign-in.</p>
     <h3>Information and purposes</h3>
     <ul class="fine">
       <li><strong>On this device:</strong> if you use the advisor, hand records (cards, moves, outcomes, and wager amounts), practice progress, fictional-credit balance, strategy preference, and session-limit entries may be saved in this browser's local storage. The current-hand model recommends moves; saved history is processed separately for the fictional pre-deal stake. The recent-20 pattern can affect Auto sizing only after at least 30 chronological predictions and a positive approximate paired Brier-improvement lower bound. Otherwise conservative recorded-return evidence or the practice baseline remains. The stake is independent of the current cards and future action. First-action probabilities provide context, and Split is one round-level result. History-based W/L sizing assumes even-money returns unless exact net returns are recorded. These estimates are experimental, uncertain, and not real-money advice. The summary, balance, and hand history stay in your browser unless you choose cloud sync. They remain until you clear them in the app or browser.</li>
@@ -2296,7 +2296,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       <li>Do not use the site to break laws or platform rules, interfere with the site, probe its security, or upload another person's confidential information. Never enter Rainbet passwords, payment credentials, or other account secrets.</li>
     </ul>
     <h3>Availability and changes</h3>
-    <p class="fine">The site is provided without a promise of uninterrupted availability or error-free strategy information. The operator may update or discontinue features. Nothing in this policy limits rights or remedies that cannot legally be excluded. There is no paid membership, billing, or payment processing at this time.</p>
+    <p class="fine">The site is provided without a promise of uninterrupted availability or error-free strategy information. The operator may update or discontinue features. Nothing in this policy limits rights or remedies that cannot legally be excluded. Stripe processes paid membership checkout and may process billing information according to its own terms.</p>
     <details class="policy-language" lang="fr">
       <summary>Version française</summary>
       <p class="fine">Mise à jour : 18 novembre 2026. Responsable : une personne physique à Montréal, Québec, Canada. Contact : <a href="mailto:guicepig@gmail.com">guicepig@gmail.com</a>.</p>
@@ -2368,6 +2368,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
             <h4>Monthly membership</h4>
             <p id="membershipStatus" class="fine" aria-live="polite">Sign in with Google to view or manage membership.</p>
             <div class="settings-controls">
+              <button type="button" id="startTrialMembership" hidden disabled>Start $1 / 7-day trial</button>
               <button type="button" id="upgradeMembership" hidden disabled>Upgrade for $10/month</button>
               <button type="button" class="secondary" id="manageMembership" hidden disabled>Manage subscription</button>
             </div>
@@ -3068,9 +3069,15 @@ node .\rainbet-gemini-server.cjs</code></pre>
         appendHelperMessage("user", question);
 
         try {
+          let authorization = "";
+          if (typeof cloudHistoryClient !== "undefined" && cloudHistoryClient && typeof cloudHistoryClient.getBillingIdToken === "function") {
+            authorization = "Bearer " + await cloudHistoryClient.getBillingIdToken();
+          }
+          const headers = {"Content-Type": "application/json"};
+          if (authorization) headers.Authorization = authorization;
           const response = await fetch("/api/chat", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers,
             cache: "no-store",
             body: JSON.stringify({message: question})
           });
@@ -5287,9 +5294,19 @@ node .\rainbet-gemini-server.cjs</code></pre>
       }
 
       async function requestStrategyAdvice(cards, dealer, options, signal) {
+        let authorization = "";
+        if (typeof cloudHistoryClient !== "undefined" && cloudHistoryClient && typeof cloudHistoryClient.getBillingIdToken === "function") {
+          try {
+            authorization = "Bearer " + await cloudHistoryClient.getBillingIdToken();
+          } catch {
+            throw new Error("Sign in with Google and activate $1 trial or $10 monthly membership to use advice.");
+          }
+        }
+        const headers = {"Content-Type": "application/json"};
+        if (authorization) headers.Authorization = authorization;
         const response = await fetch("/api/advice", {
           method: "POST",
-          headers: {"Content-Type": "application/json"},
+          headers,
           body: JSON.stringify({
             cards: cards.map((card) => card.rank),
             dealer: dealer.rank,
@@ -6391,12 +6408,14 @@ node .\rainbet-gemini-server.cjs</code></pre>
         if (!cloudHistoryUser || !cloudHistoryClient) {
           membershipTier = "free";
           byId("membershipStatus").textContent = "Sign in with Google to view or manage membership.";
+          byId("startTrialMembership").hidden = true;
           byId("upgradeMembership").hidden = true;
           byId("manageMembership").hidden = true;
           return;
         }
         membershipLoading = true;
         byId("membershipStatus").textContent = "Checking your membership…";
+        byId("startTrialMembership").disabled = true;
         byId("upgradeMembership").disabled = true;
         byId("manageMembership").disabled = true;
         try {
@@ -6409,16 +6428,38 @@ node .\rainbet-gemini-server.cjs</code></pre>
           if (!response.ok) throw new Error(payload.error || "Could not check membership.");
           membershipTier = payload.tier;
           byId("membershipStatus").textContent = membershipTier === "paid"
-            ? "Paid membership active."
-            : "Free membership.";
+            ? payload.subscriptionStatus === "trialing"
+              ? "7-day trial active until " + new Date(payload.trialExpiresAt).toLocaleDateString() + "."
+              : "Paid $10/month membership active."
+            : "Free membership. Start the $1 seven-day trial or pay $10/month.";
         } catch (error) {
           byId("membershipStatus").textContent = "Membership unavailable: " + error.message;
         } finally {
           membershipLoading = false;
+          byId("startTrialMembership").hidden = membershipTier === "paid";
+          byId("startTrialMembership").disabled = false;
           byId("upgradeMembership").hidden = membershipTier === "paid";
           byId("upgradeMembership").disabled = false;
           byId("manageMembership").hidden = membershipTier !== "paid";
           byId("manageMembership").disabled = false;
+        }
+      }
+
+      async function startTrialMembershipCheckout() {
+        if (!cloudHistoryClient || !cloudHistoryUser || membershipLoading) return;
+        byId("membershipStatus").textContent = "Opening secure $1 trial checkout…";
+        try {
+          const idToken = await cloudHistoryClient.getBillingIdToken();
+          const response = await fetch("/api/billing/trial", {
+            method: "POST",
+            headers: {Authorization: "Bearer " + idToken, "Content-Type": "application/json"},
+            body: "{}"
+          });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || "Could not start the trial.");
+          window.location.assign(payload.url);
+        } catch (error) {
+          byId("membershipStatus").textContent = "Could not start the trial: " + error.message;
         }
       }
 
@@ -6615,6 +6656,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("saveProfileName").addEventListener("click", () => void savePrivateProfileName(false));
         byId("clearProfileName").addEventListener("click", () => void savePrivateProfileName(true));
         byId("googleHistorySync").addEventListener("click", () => syncCloudHistory());
+        if (byId("startTrialMembership")) byId("startTrialMembership").addEventListener("click", () => void startTrialMembershipCheckout());
         if (byId("upgradeMembership")) byId("upgradeMembership").addEventListener("click", () => void startMembershipCheckout());
         if (byId("manageMembership")) byId("manageMembership").addEventListener("click", () => void openMembershipPortal());
         byId("googleHistorySignOut").addEventListener("click", async () => {
