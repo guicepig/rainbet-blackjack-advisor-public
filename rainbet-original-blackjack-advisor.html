@@ -1093,8 +1093,8 @@
     }
     .welcome-checks { display: grid; gap: 10px; margin: 14px 0; }
     .welcome-checks label {
-      display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 9px;
-      align-items: start; color: #dce5df; font-size: .86rem; line-height: 1.45;
+      display: flex; align-items: center; gap: 9px;
+      color: #dce5df; font-size: .86rem;
     }
     .welcome-checks input { width: 17px; min-height: 17px; height: 17px; margin: 3px 0 0; }
     .welcome-policy-links { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -2194,11 +2194,11 @@ node .\rainbet-gemini-server.cjs</code></pre>
     <div class="welcome-checks">
       <label for="welcomePrivacyAccept">
         <input id="welcomePrivacyAccept" type="checkbox">
-        <span>I have reviewed and accept the <strong>Privacy Policy</strong>, including local storage and optional third-party services.</span>
+        <span>Privacy Policy</span>
       </label>
       <label for="welcomeUsageAccept">
         <input id="welcomeUsageAccept" type="checkbox">
-        <span>I have reviewed and accept the <strong>Usage Policy</strong>, I am an adult, and I understand this is not real-money advice.</span>
+        <span>Usage Policy</span>
       </label>
     </div>
     <p class="fine" id="welcomeConsentStatus" aria-live="polite">Both policy checkboxes are required.</p>
