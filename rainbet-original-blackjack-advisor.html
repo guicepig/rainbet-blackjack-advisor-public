@@ -529,6 +529,14 @@
     .advisor-pattern-table th { color: #9fb6d0; font-size: .6rem; font-weight: 800; }
     .advisor-pattern-table td:last-child { color: #e3efff; font-variant-numeric: tabular-nums; font-weight: 750; }
     .advisor-pattern-status { margin: 7px 0 0; color: #9daebf; font-size: .64rem; line-height: 1.4; }
+    .advisor-pattern-details { margin-top: 7px; }
+    .advisor-pattern-details summary {
+      min-height: 36px; padding: 8px 10px; border: 1px solid rgba(171, 196, 223, .16);
+      border-radius: 9px; color: #cfe0f4; cursor: pointer; font-size: .68rem; font-weight: 750;
+      list-style: none;
+    }
+    .advisor-pattern-details summary::-webkit-details-marker { display: none; }
+    .advisor-pattern-details[open] summary { margin-bottom: 7px; background: rgba(171, 196, 223, .06); }
     .advisor-wager-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 11px; }
     .advisor-wager-controls label { display: grid; align-content: start; gap: 5px; color: #d3e2d6; font-size: .72rem; font-weight: 700; }
     .advisor-wager-controls input, .advisor-wager-controls select { width: 100%; min-height: 40px; margin: 0; padding: 7px 9px; font-size: .82rem; }
@@ -1516,16 +1524,19 @@
               <strong class="advisor-pattern-probability" id="outcomePatternProbability" aria-live="polite">—</strong>
             </div>
             <p class="advisor-pattern-copy" id="outcomePatternSummary" aria-live="polite">Save 20 resolved outcomes to see the current recent-history context.</p>
-            <p class="advisor-pattern-copy" id="actionOutcomeSummary" aria-live="polite">First-action hit, stand, double, and split outcomes will appear here when recorded.</p>
-            <div class="advisor-pattern-table-wrap">
-              <table class="advisor-pattern-table">
-                <caption class="visually-hidden">Smoothed win, push, and loss estimates after each pattern in the previous 20 outcomes</caption>
-                <thead><tr><th scope="col">Previous 20 results</th><th scope="col">Follow-ups</th><th scope="col">Observed W/P/L</th><th scope="col">Smoothed W/P/L</th></tr></thead>
-                <tbody id="outcomePatternRows"></tbody>
-              </table>
-            </div>
+            <details class="advisor-pattern-details">
+              <summary>View recent-20 breakdown</summary>
+              <p class="advisor-pattern-copy" id="actionOutcomeSummary" aria-live="polite">First-action hit, stand, double, and split outcomes will appear here when recorded.</p>
+              <div class="advisor-pattern-table-wrap">
+                <table class="advisor-pattern-table">
+                  <caption class="visually-hidden">Smoothed win, push, and loss estimates after each pattern in the previous 20 outcomes</caption>
+                  <thead><tr><th scope="col">Previous 20 results</th><th scope="col">Follow-ups</th><th scope="col">Observed W/P/L</th><th scope="col">Smoothed W/P/L</th></tr></thead>
+                  <tbody id="outcomePatternRows"></tbody>
+                </table>
+              </div>
+              <p class="advisor-pattern-status">This estimate is experimental and does not change play advice or predict future outcomes. It is used for a fictional pre-deal stake only after chronological validation.</p>
+            </details>
             <p class="advisor-pattern-status" id="outcomePatternEvaluation" aria-live="polite">Walk-forward test: not enough outcomes yet.</p>
-            <p class="advisor-pattern-status">This recent-20 pattern estimate is experimental and does not change current-hand play advice. Auto can use it for the pre-deal fictional amount only after at least 30 chronological predictions and an approximate positive 95% lower bound on Brier improvement over the overall baseline; otherwise it is display-only. Streaks do not themselves change game odds.</p>
           </section>
           <div class="advisor-wager-controls">
             <label for="handWager">Fake-credit pre-deal wager for this hand

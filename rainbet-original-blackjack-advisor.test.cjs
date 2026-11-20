@@ -2888,6 +2888,8 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
 });
 
 test("wager suggestion is prominent and displays a history-based estimate", () => {
+  assert.match(html, /class="advisor-pattern-details"/);
+  assert.match(html, /View recent-20 breakdown/);
   assert.match(html, /id="premiumQuickstart"/);
   assert.match(html, /id="premiumHandsSaved"/);
   assert.match(html, /id="premiumResolvedHands"/);
