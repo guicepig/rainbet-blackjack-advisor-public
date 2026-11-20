@@ -17,6 +17,29 @@ service cloud.firestore {
         && request.resource.data.updatedAt is timestamp;
     }
 
+    match /users/{userId}/profile/{profileId} {
+      allow read, delete: if request.auth != null
+        && request.auth.uid == userId
+        && profileId == "current";
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && profileId == "current"
+        && request.resource.data.keys().hasOnly(["schemaVersion", "displayName", "updatedAt"])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.matches("^[A-Za-z0-9_-]{3,20}$")
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    match /trainingAggregates/{scenarioId} {
+      allow read, write: if false;
+    }
+
+    match /trainingReceipts/{receiptId} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

@@ -34,8 +34,12 @@ async function initializeCloudHistory() {
     const app = appSdk.initializeApp(config);
     const auth = authSdk.getAuth(app);
     await authSdk.setPersistence(auth, authSdk.browserLocalPersistence);
+    const trainingApp = appSdk.initializeApp(config, "rainbet-shared-training");
+    const trainingAuth = authSdk.getAuth(trainingApp);
+    await authSdk.setPersistence(trainingAuth, authSdk.browserLocalPersistence);
     const database = firestoreSdk.getFirestore(app);
     const historyDocument = (uid) => firestoreSdk.doc(database, "users", uid, "history", "current");
+    const profileDocument = (uid) => firestoreSdk.doc(database, "users", uid, "profile", "current");
 
     window.rainbetCloudHistory = {
       async signIn() {
@@ -45,6 +49,17 @@ async function initializeCloudHistory() {
       },
       signOut() {
         return authSdk.signOut(auth);
+      },
+      async getTrainingIdToken() {
+        let user = trainingAuth.currentUser;
+        if (!user) {
+          const credential = await authSdk.signInAnonymously(trainingAuth);
+          user = credential.user;
+        }
+        if (!user || !user.isAnonymous) {
+          throw new Error("The shared-training session is not anonymous.");
+        }
+        return user.getIdToken();
       },
       async mergeHistory(localEntries, mergeEntries) {
         const user = auth.currentUser;
@@ -75,6 +90,64 @@ async function initializeCloudHistory() {
         const user = auth.currentUser;
         if (!user) throw new Error("Sign in with Google before clearing cloud history.");
         await firestoreSdk.deleteDoc(historyDocument(user.uid));
+      },
+      async loadProfile() {
+        const user = auth.currentUser;
+        if (!user) throw new Error("Sign in with Google before loading your private username.");
+        const snapshot = await firestoreSdk.getDoc(profileDocument(user.uid));
+        if (!snapshot.exists()) return "";
+        const profile = snapshot.data();
+        if (profile.schemaVersion !== 1 ||
+            typeof profile.displayName !== "string" ||
+            !/^[A-Za-z0-9_-]{3,20}$/.test(profile.displayName)) {
+          throw new Error("The saved private username has an unsupported format.");
+        }
+        return profile.displayName;
+      },
+      async saveProfile(displayName) {
+        const user = auth.currentUser;
+        if (!user) throw new Error("Sign in with Google before saving your private username.");
+        if (typeof displayName !== "string" || !/^[A-Za-z0-9_-]{3,20}$/.test(displayName)) {
+          throw new Error("Use 3-20 letters, numbers, underscores, or hyphens.");
+        }
+        await firestoreSdk.setDoc(profileDocument(user.uid), {
+          schemaVersion: 1,
+          displayName,
+          updatedAt: firestoreSdk.serverTimestamp()
+        });
+      },
+      async clearProfile() {
+        const user = auth.currentUser;
+        if (!user) throw new Error("Sign in with Google before clearing your private username.");
+        await firestoreSdk.deleteDoc(profileDocument(user.uid));
+      },
+      async loadSiteStats(dateRange) {
+        const user = auth.currentUser;
+        if (!user) throw new Error("Sign in with Google before viewing site analytics.");
+        if (!["7d", "30d", "90d", "all"].includes(dateRange)) {
+          throw new Error("Choose a supported analytics date range.");
+        }
+        const idToken = await user.getIdToken();
+        const response = await fetch("/api/site-stats", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + idToken,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({dateRange})
+        });
+        let payload;
+        try {
+          payload = await response.json();
+        } catch {
+          throw new Error("The site analytics service returned an invalid response.");
+        }
+        if (!response.ok) {
+          throw new Error(payload && typeof payload.error === "string"
+            ? payload.error
+            : "Could not load site analytics.");
+        }
+        return payload;
       }
     };
 
@@ -82,7 +155,9 @@ async function initializeCloudHistory() {
     authSdk.onAuthStateChanged(auth, (user) => {
       emitCloudEvent({
         status: "auth",
-        user: user ? {uid: user.uid, displayName: user.displayName || "", email: user.email || ""} : null
+        user: user && !user.isAnonymous
+          ? {uid: user.uid, displayName: user.displayName || "", email: user.email || ""}
+          : null
       });
     }, () => {
       emitCloudEvent({

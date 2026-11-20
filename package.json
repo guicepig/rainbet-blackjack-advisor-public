@@ -9,5 +9,8 @@
   "scripts": {
     "start": "node rainbet-gemini-server.cjs",
     "test": "node --test rainbet-original-blackjack-advisor.test.cjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.1"
   }
 }

@@ -121,6 +121,15 @@ function actionFor(cards, dealer, options) {
 }
 
 function actionForSplitHand(cards, dealer, options) {
+  if (cards.length > 0 && cards[0].rank === "A") {
+    return {
+      action: "STAND",
+      alternativeAction: null,
+      explanation: "Rainbet's split-ace rule: each split ace receives one card, then stands automatically; no further player action is available.",
+      hand: handTotal(cards)
+    };
+  }
+
   const baselineOptions = {
     ...options,
     doubleAllowed: false,
@@ -187,16 +196,40 @@ function expectedValueActionAnalysis(cards, dealer, options) {
     aces: dealer.rank === "A" ? 1 : 0
   };
   const dealerDistribution = dealerOutcomes(dealerStart);
-  function standValue(state, natural = false) {
-    if (natural) return 1.5;
+  function standOutcomes(state) {
     const playerTotal = bestTotal(state);
-    if (playerTotal > 21) return -1;
-    let value = dealerDistribution[0];
+    if (playerTotal > 21) return {win: 0, push: 0, loss: 1};
+    let win = dealerDistribution[0];
+    let push = 0;
+    let loss = 0;
     for (let dealerTotal = 17; dealerTotal <= 21; dealerTotal++) {
       const probability = dealerDistribution[dealerTotal - 16];
-      value += probability * (playerTotal > dealerTotal ? 1 : playerTotal < dealerTotal ? -1 : 0);
+      if (playerTotal > dealerTotal) win += probability;
+      else if (playerTotal === dealerTotal) push += probability;
+      else loss += probability;
     }
-    return value;
+    return {win, push, loss};
+  }
+
+  function standValue(state, natural = false) {
+    if (natural) return 1.5;
+    const outcomes = standOutcomes(state);
+    return outcomes.win - outcomes.loss;
+  }
+
+  function hitOutcomes(state, resolveOptimally) {
+    const outcomes = {win: 0, push: 0, loss: 0};
+    for (let index = 0; index < rankProbabilities.length; index++) {
+      const probability = rankProbabilities[index];
+      const nextState = addCard(state, index);
+      const nextOutcomes = bestTotal(nextState) > 21
+        ? {win: 0, push: 0, loss: 1}
+        : resolveOptimally(nextState);
+      for (const result of ["win", "push", "loss"]) {
+        outcomes[result] += probability * nextOutcomes[result];
+      }
+    }
+    return outcomes;
   }
 
   function optimalValue(state) {
@@ -214,10 +247,21 @@ function expectedValueActionAnalysis(cards, dealer, options) {
     return value;
   }
 
+  function optimalOutcomes(state) {
+    const total = bestTotal(state);
+    if (total > 21) return {win: 0, push: 0, loss: 1};
+    return standValue(state) >= optimalValue(state) - 1e-12
+      ? standOutcomes(state)
+      : hitOutcomes(state, optimalOutcomes);
+  }
+
   const state = stateForCards(cards);
   const total = bestTotal(state);
   const natural = cards.length === 2 && state.aces === 1 && state.hardTotal === 11;
   const values = {stand: standValue(state, natural)};
+  const outcomeProbabilities = {
+    stand: natural ? {win: 1, push: 0, loss: 0} : standOutcomes(state)
+  };
   if (!natural && total < 21) {
     let hitValue = 0;
     let doubleValue = 0;
@@ -231,7 +275,22 @@ function expectedValueActionAnalysis(cards, dealer, options) {
       }
     }
     values.hit = hitValue;
-    if (options.doubleAllowed && cards.length === 2) values.double = doubleValue;
+    outcomeProbabilities.hit = hitOutcomes(state, optimalOutcomes);
+    if (options.doubleAllowed && cards.length === 2) {
+      values.double = doubleValue;
+      const doubleOutcomes = {win: 0, push: 0, loss: 0};
+      for (let index = 0; index < rankProbabilities.length; index++) {
+        const probability = rankProbabilities[index];
+        const nextState = addCard(state, index);
+        const nextOutcomes = bestTotal(nextState) > 21
+          ? {win: 0, push: 0, loss: 1}
+          : standOutcomes(nextState);
+        for (const result of ["win", "push", "loss"]) {
+          doubleOutcomes[result] += probability * nextOutcomes[result];
+        }
+      }
+      outcomeProbabilities.double = doubleOutcomes;
+    }
   }
 
   const bestAction = Object.entries(values).reduce((best, entry) =>
@@ -240,6 +299,7 @@ function expectedValueActionAnalysis(cards, dealer, options) {
   return {
     bestAction,
     values,
+    outcomeProbabilities,
     shoe: "8-deck S17 rank probabilities (replacement approximation)",
     unit: "initial wager"
   };

@@ -11,3 +11,11 @@ services:
         value: 0.0.0.0
       - key: NODE_ENV
         value: production
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: PLAUSIBLE_STATS_API_KEY
+        sync: false
+      - key: PLAUSIBLE_SITE_ID
+        sync: false
+      - key: SITE_STATS_ADMIN_EMAILS
+        sync: false

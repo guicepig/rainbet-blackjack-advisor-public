@@ -5,14 +5,112 @@ const test = require("node:test");
 const vm = require("node:vm");
 const {createServer: createGeminiServer, extractAnswer} = require("./rainbet-gemini-server.cjs");
 const {actionFor, actionForContext, expectedValueActionAnalysis} = require("./rainbet-strategy.cjs");
+const {
+  TrainingContributionError,
+  createFirebaseTrainingStore,
+  normalizeTrainingContribution
+} = require("./rainbet-training-data.cjs");
+const {SiteStatsError, createSiteStatsService} = require("./rainbet-site-stats.cjs");
 
 const html = fs.readFileSync(path.join(__dirname, "rainbet-original-blackjack-advisor.html"), "utf8");
 const serverSource = fs.readFileSync(path.join(__dirname, "rainbet-gemini-server.cjs"), "utf8");
+const firestoreRules = fs.readFileSync(path.join(__dirname, "firestore.rules"), "utf8");
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
 const mainScript = scripts[0] && scripts[0][1];
 const simulatorScript = scripts[1] && scripts[1][1];
 assert.ok(mainScript, "main advisor script should exist");
 assert.ok(simulatorScript, "simulator script should exist");
+
+const settingsPanelStart = mainScript.indexOf("      function setActiveSettingsPanel(");
+const settingsPanelEnd = mainScript.indexOf("      function initializeAppearanceSettings(", settingsPanelStart);
+assert.ok(settingsPanelStart >= 0 && settingsPanelEnd > settingsPanelStart, "settings panel navigation helper should exist");
+const setActiveSettingsPanel = new Function(
+  mainScript.slice(settingsPanelStart, settingsPanelEnd) + "return setActiveSettingsPanel;"
+)();
+const aiButtonPreferenceStart = mainScript.indexOf("      function readAiButtonVisibilityPreference(");
+const aiButtonPreferenceEnd = mainScript.indexOf("      function initializeInterfaceSettings(", aiButtonPreferenceStart);
+assert.ok(aiButtonPreferenceStart >= 0 && aiButtonPreferenceEnd > aiButtonPreferenceStart, "AI button preference reader should exist");
+const readAiButtonVisibilityPreference = new Function(
+  mainScript.slice(aiButtonPreferenceStart, aiButtonPreferenceEnd) + "return readAiButtonVisibilityPreference;"
+)();
+const feedbackPreferenceStart = mainScript.indexOf("      function readFeedbackPreference(");
+const feedbackPreferenceEnd = mainScript.indexOf("      function showSoundEffectsStatus(", feedbackPreferenceStart);
+assert.ok(feedbackPreferenceStart >= 0 && feedbackPreferenceEnd > feedbackPreferenceStart, "feedback preference reader should exist");
+const readFeedbackPreference = new Function(
+  mainScript.slice(feedbackPreferenceStart, feedbackPreferenceEnd) + "return readFeedbackPreference;"
+)();
+const commandPaletteFilterStart = mainScript.indexOf("      function filterCommandPaletteCommands(");
+const commandPaletteFilterEnd = mainScript.indexOf("      function initializeCommandPalette(", commandPaletteFilterStart);
+assert.ok(commandPaletteFilterStart >= 0 && commandPaletteFilterEnd > commandPaletteFilterStart, "command palette filter should exist");
+const filterCommandPaletteCommands = new Function(
+  mainScript.slice(commandPaletteFilterStart, commandPaletteFilterEnd) + "return filterCommandPaletteCommands;"
+)();
+const soundPlayerStart = mainScript.indexOf("      function playInterfaceSound(");
+const soundPlayerEnd = mainScript.indexOf("      function playVibrationFeedback(", soundPlayerStart);
+assert.ok(soundPlayerStart >= 0 && soundPlayerEnd > soundPlayerStart, "interface sound player should exist");
+const createInterfaceSoundPlayer = (soundEffectsEnabled, fakeWindow, showStatus) => new Function(
+  "soundEffectsEnabled",
+  "feedbackAudioUnavailable",
+  "feedbackAudioContext",
+  "lastInterfaceSoundAt",
+  "window",
+  "byId",
+  "showSoundEffectsStatus",
+  mainScript.slice(soundPlayerStart, soundPlayerEnd) + "return playInterfaceSound;"
+)(soundEffectsEnabled, false, null, -Infinity, fakeWindow, () => null, showStatus);
+const vibrationPlayerStart = mainScript.indexOf("      function playVibrationFeedback(");
+const vibrationPlayerEnd = mainScript.indexOf("      function playInterfaceFeedback(", vibrationPlayerStart);
+assert.ok(vibrationPlayerStart >= 0 && vibrationPlayerEnd > vibrationPlayerStart, "vibration feedback player should exist");
+const createVibrationPlayer = (vibrationFeedbackEnabled, fakeWindow, showStatus) => new Function(
+  "vibrationFeedbackEnabled",
+  "vibrationFeedbackUnavailable",
+  "window",
+  "showVibrationFeedbackStatus",
+  mainScript.slice(vibrationPlayerStart, vibrationPlayerEnd) + "return playVibrationFeedback;"
+)(vibrationFeedbackEnabled, false, fakeWindow, showStatus);
+const privateUsernameStart = mainScript.indexOf("      function isValidPrivateUsername(");
+const privateUsernameEnd = mainScript.indexOf("      function setProfileNameStatus(", privateUsernameStart);
+assert.ok(privateUsernameStart >= 0 && privateUsernameEnd > privateUsernameStart, "private username validator should exist");
+const isValidPrivateUsername = new Function(
+  mainScript.slice(privateUsernameStart, privateUsernameEnd) + "return isValidPrivateUsername;"
+)();
+const decisionClassifierStart = mainScript.indexOf("      function classifyHistoryDecision(");
+const decisionClassifierEnd = mainScript.indexOf("      function summarizeDecisionPatterns(", decisionClassifierStart);
+assert.ok(decisionClassifierStart >= 0 && decisionClassifierEnd > decisionClassifierStart, "history decision classifier should exist");
+const classifyHistoryDecisionForStats = new Function(
+  mainScript.slice(decisionClassifierStart, decisionClassifierEnd) + "return classifyHistoryDecision;"
+)();
+const personalStatsStart = mainScript.indexOf("      function calculatePersonalStats(");
+const personalStatsEnd = mainScript.indexOf("      function practiceScenarioKey(", personalStatsStart);
+assert.ok(personalStatsStart >= 0 && personalStatsEnd > personalStatsStart, "personal stats calculator should exist");
+const calculatePersonalStats = new Function(
+  "classifyHistoryDecision",
+  mainScript.slice(personalStatsStart, personalStatsEnd) + "return calculatePersonalStats;"
+)(classifyHistoryDecisionForStats);
+const gameOddsStart = mainScript.indexOf("      function combinationCount(");
+const gameOddsEnd = mainScript.indexOf("      function formatOddsPercent(", gameOddsStart);
+assert.ok(gameOddsStart >= 0 && gameOddsEnd > gameOddsStart, "Keno and Mines probability helpers should exist");
+const {
+  calculateKenoDistribution,
+  drawKenoNumbers,
+  toggleKenoSelection,
+  calculateKenoExpectedReturn,
+  getKenoModeConfig,
+  getKenoPayoutMultipliers,
+  getKenoPayoutMultiplier,
+  formatKenoMultiplier,
+  calculateMinesOdds,
+  calculateMinesExpectedReturn
+} = new Function(
+  mainScript.slice(gameOddsStart, gameOddsEnd) +
+  "return {calculateKenoDistribution, drawKenoNumbers, toggleKenoSelection, calculateKenoExpectedReturn, getKenoModeConfig, getKenoPayoutMultipliers, getKenoPayoutMultiplier, formatKenoMultiplier, calculateMinesOdds, calculateMinesExpectedReturn};"
+)();
+const siteStatsValidationStart = mainScript.indexOf("      function isValidSiteStatsPayload(");
+const siteStatsValidationEnd = mainScript.indexOf("      function formatVisitDuration(", siteStatsValidationStart);
+assert.ok(siteStatsValidationStart >= 0 && siteStatsValidationEnd > siteStatsValidationStart, "site stats response validator should exist");
+const isValidSiteStatsPayload = new Function(
+  mainScript.slice(siteStatsValidationStart, siteStatsValidationEnd) + "return isValidSiteStatsPayload;"
+)();
 
 const analyticsPredicateStart = mainScript.indexOf("      function isAnalyticsOrigin(");
 const analyticsPredicateEnd = mainScript.indexOf("      function trackHistoryAccountCreated(", analyticsPredicateStart);
@@ -21,6 +119,254 @@ const {isAnalyticsOrigin, shouldLoadAnalytics} = new Function(
   mainScript.slice(analyticsPredicateStart, analyticsPredicateEnd) +
   "return {isAnalyticsOrigin, shouldLoadAnalytics};"
 )();
+
+function validTrainingContribution(overrides = {}) {
+  return {
+    consultationId: "consultation-1",
+    cards: ["10", "6"],
+    dealer: "10",
+    doubleAllowed: true,
+    splitAllowed: true,
+    dasRule: "unknown",
+    afterSplit: false,
+    recommendedAction: "HIT",
+    alternativeAction: null,
+    playerAction: "HIT",
+    result: "win",
+    ...overrides
+  };
+}
+
+test("shared-training contributions whitelist only hand context and categorical outcomes", () => {
+  const contribution = normalizeTrainingContribution(validTrainingContribution({
+    wagerAmount: 500,
+    netResult: 450,
+    email: "private@example.com",
+    finalPlayerCards: ["10", "6", "5"]
+  }));
+  assert.deepEqual(contribution.scenario, {
+    cards: ["10", "6"],
+    dealer: "10",
+    doubleAllowed: true,
+    splitAllowed: true,
+    dasRule: "unknown",
+    afterSplit: false,
+    recommendedAction: "HIT",
+    alternativeAction: null,
+    playerAction: "HIT"
+  });
+  assert.equal(Object.hasOwn(contribution, "wagerAmount"), false);
+  assert.equal(Object.hasOwn(contribution, "email"), false);
+  assert.equal(
+    normalizeTrainingContribution(validTrainingContribution({result: "loss"})).scenarioId,
+    contribution.scenarioId,
+    "changing only the outcome updates an aggregate count, not the scenario key"
+  );
+  assert.equal(
+    normalizeTrainingContribution(validTrainingContribution({playerAction: "STAND"})).contextId,
+    contribution.contextId,
+    "alternative actions in the same context can be grouped for evaluation"
+  );
+  assert.notEqual(
+    normalizeTrainingContribution(validTrainingContribution({playerAction: "STAND"})).scenarioId,
+    contribution.scenarioId
+  );
+  assert.throws(
+    () => normalizeTrainingContribution(validTrainingContribution({result: "unknown"})),
+    (error) => error instanceof TrainingContributionError && error.status === 400
+  );
+  assert.throws(
+    () => normalizeTrainingContribution(validTrainingContribution({playerAction: null})),
+    (error) => error instanceof TrainingContributionError && error.status === 400
+  );
+});
+
+test("shared-training consent is explicit, off by default, and revocable", () => {
+  const start = mainScript.indexOf("      function initializeTrainingConsent() {");
+  const end = mainScript.indexOf("      async function sendTrainingContribution(", start);
+  assert.ok(start >= 0 && end > start);
+  const toggle = {checked: false, disabled: false, listeners: {}, addEventListener(name, callback) { this.listeners[name] = callback; }};
+  const status = {textContent: ""};
+  const values = new Map();
+  const helpers = new Function(
+    "byId",
+    "window",
+    "console",
+    "trainingContributionConsentKey",
+    "let trainingContributionConsent = false;\n" +
+      mainScript.slice(start, end) +
+      "return {initializeTrainingConsent, isEnabled: () => trainingContributionConsent};"
+  )(
+    (id) => id === "shareTrainingData" ? toggle : status,
+    {localStorage: {
+      getItem(key) { return values.get(key) || null; },
+      setItem(key, value) { values.set(key, value); },
+      removeItem(key) { values.delete(key); }
+    }},
+    {error() {}},
+    "training-consent"
+  );
+  helpers.initializeTrainingConsent();
+  assert.equal(toggle.checked, false);
+  assert.equal(helpers.isEnabled(), false);
+  assert.match(status.textContent, /Off/);
+  toggle.checked = true;
+  toggle.listeners.change();
+  assert.equal(values.get("training-consent"), "accepted-v1");
+  assert.equal(helpers.isEnabled(), true);
+  toggle.checked = false;
+  toggle.listeners.change();
+  assert.equal(values.has("training-consent"), false);
+  assert.equal(helpers.isEnabled(), false);
+});
+
+test("the browser sends only the minimized fields after a completed hand is opted in", async () => {
+  const start = mainScript.indexOf("      async function sendTrainingContribution(entry) {");
+  const end = mainScript.indexOf("      function shareCompletedHand(", start);
+  assert.ok(start >= 0 && end > start);
+  let request = null;
+  const send = new Function(
+    "window",
+    "fetch",
+    mainScript.slice(start, end) + "return sendTrainingContribution;"
+  )(
+    {rainbetCloudHistory: {async getTrainingIdToken() { return "anonymous-token"; }}},
+    async (url, options) => {
+      request = {url, options};
+      return {ok: true, json: async () => ({accepted: true, duplicate: false})};
+    }
+  );
+  await send({
+    ...validTrainingContribution(),
+    wagerAmount: 500,
+    netResult: 450,
+    finalPlayerCards: ["10", "6", "5"],
+    finalDealerCards: ["10", "8"],
+    email: "private@example.com"
+  });
+  const payload = JSON.parse(request.options.body);
+  assert.equal(request.url, "/api/training-contribution");
+  assert.equal(request.options.headers.Authorization, "Bearer anonymous-token");
+  assert.deepEqual(Object.keys(payload).sort(), [
+    "afterSplit", "alternativeAction", "cards", "consultationId", "dasRule",
+    "dealer", "doubleAllowed", "playerAction", "recommendedAction", "result", "splitAllowed"
+  ].sort());
+  assert.equal(payload.wagerAmount, undefined);
+  assert.equal(payload.finalPlayerCards, undefined);
+});
+
+test("shared-hand submission is blocked until consent and a recorded action exist", async () => {
+  const start = mainScript.indexOf("      function shareCompletedHand(entry) {");
+  const end = mainScript.indexOf("      const rankNames =", start);
+  assert.ok(start >= 0 && end > start);
+  const status = {textContent: ""};
+  const submitted = [];
+  const helpers = new Function(
+    "byId",
+    "sendTrainingContribution",
+    "let trainingContributionConsent = false;\n" +
+      mainScript.slice(start, end) +
+      "return {shareCompletedHand, setConsent: (value) => { trainingContributionConsent = value; }};"
+  )(
+    () => status,
+    async (entry) => {
+      submitted.push(entry.consultationId);
+      return {duplicate: false};
+    }
+  );
+  const entry = validTrainingContribution();
+  helpers.shareCompletedHand(entry);
+  assert.equal(submitted.length, 0);
+  helpers.setConsent(true);
+  helpers.shareCompletedHand({...entry, playerAction: null});
+  assert.equal(submitted.length, 0);
+  assert.match(status.textContent, /no first action/);
+  helpers.shareCompletedHand(entry);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(submitted, ["consultation-1"]);
+  assert.match(status.textContent, /contributed to aggregate shared statistics/);
+});
+
+test("shared-training storage accepts anonymous sessions and deduplicates hand submissions", async () => {
+  const records = new Map();
+  const aggregateWrites = [];
+  const firestore = {
+    collection(name) {
+      return {
+        doc(id) {
+          return {path: name + "/" + id};
+        }
+      };
+    },
+    runTransaction(work) {
+      return work({
+        async get(reference) {
+          return {exists: records.has(reference.path)};
+        },
+        create(reference, value) {
+          records.set(reference.path, value);
+        },
+        set(reference, value, options) {
+          aggregateWrites.push({reference, value, options});
+        }
+      });
+    }
+  };
+  const store = createFirebaseTrainingStore({
+    auth: {
+      async verifyIdToken(token) {
+        assert.equal(token, "a-valid-anonymous-id-token");
+        return {uid: "anonymous-user", firebase: {sign_in_provider: "anonymous"}};
+      }
+    },
+    firestore,
+    fieldValue: {
+      increment: (amount) => ({increment: amount}),
+      serverTimestamp: () => "server-time"
+    },
+    receiptSecret: "private-server-receipt-secret-that-is-long-enough"
+  });
+  const input = validTrainingContribution();
+  assert.deepEqual(await store.submit("a-valid-anonymous-id-token", input), {duplicate: false});
+  assert.deepEqual(await store.submit("a-valid-anonymous-id-token", input), {duplicate: true});
+  assert.deepEqual(await store.submit("a-valid-anonymous-id-token", {
+    ...input,
+    consultationId: "consultation-loss",
+    result: "loss"
+  }), {duplicate: false});
+  assert.deepEqual(await store.submit("a-valid-anonymous-id-token", {
+    ...input,
+    consultationId: "consultation-push",
+    result: "push"
+  }), {duplicate: false});
+  assert.equal(aggregateWrites.length, 3);
+  assert.equal(aggregateWrites[0].reference.path.startsWith("trainingAggregates/"), true);
+  assert.equal(aggregateWrites[0].value.winCount.increment, 1);
+  assert.equal(aggregateWrites[0].value.scenario.email, undefined);
+  assert.deepEqual(
+    aggregateWrites.map((item) => item.reference.path),
+    Array(3).fill(aggregateWrites[0].reference.path),
+    "win, loss, and push samples for the same decision context share one aggregate bucket"
+  );
+  assert.equal(aggregateWrites[1].value.lossCount.increment, 1);
+  assert.equal(aggregateWrites[2].value.pushCount.increment, 1);
+
+  const googleStore = createFirebaseTrainingStore({
+    auth: {async verifyIdToken() {
+      return {uid: "google-user", firebase: {sign_in_provider: "google.com"}};
+    }},
+    firestore,
+    fieldValue: {
+      increment: (amount) => ({increment: amount}),
+      serverTimestamp: () => "server-time"
+    },
+    receiptSecret: "private-server-receipt-secret-that-is-long-enough"
+  });
+  await assert.rejects(
+    googleStore.submit("a-valid-anonymous-id-token", validTrainingContribution({consultationId: "other-hand"})),
+    (error) => error instanceof TrainingContributionError && error.status === 401
+  );
+});
 
 test("analytics requires explicit consent and an exact HTTPS domain match", () => {
   assert.equal(shouldLoadAnalytics("accepted", "advisor.example", "https:", "advisor.example"), true);
@@ -55,6 +401,353 @@ test("history-account analytics sends only an approved event after consent", () 
   assert.deepEqual(events, [["History Account Created"]]);
 });
 
+test("settings navigation and private usernames enforce their supported states", () => {
+  const buttons = ["account", "appearance", "privacy"].map((section) => ({
+    dataset: {settingsTarget: section},
+    attributes: {},
+    setAttribute(name, value) { this.attributes[name] = value; }
+  }));
+  const panels = ["account", "appearance", "privacy"].map((section) => ({
+    dataset: {settingsPanel: section},
+    hidden: section !== "account"
+  }));
+  const description = {textContent: ""};
+  const descriptions = {account: "Account settings.", appearance: "Appearance settings.", privacy: "Privacy settings."};
+
+  setActiveSettingsPanel("appearance", buttons, panels, descriptions, description);
+  assert.deepEqual(buttons.map((button) => button.attributes["aria-pressed"]), ["false", "true", "false"]);
+  assert.deepEqual(panels.map((panel) => panel.hidden), [true, false, true]);
+  assert.equal(description.textContent, "Appearance settings.");
+  assert.throws(() => setActiveSettingsPanel("unknown", buttons, panels, descriptions, description), /Unknown settings section/);
+
+  assert.equal(isValidPrivateUsername("Player_7"), true);
+  assert.equal(isValidPrivateUsername("abc"), true);
+  assert.equal(isValidPrivateUsername("a".repeat(20)), true);
+  assert.equal(isValidPrivateUsername("ab"), false);
+  assert.equal(isValidPrivateUsername("a".repeat(21)), false);
+  assert.equal(isValidPrivateUsername("two words"), false);
+  assert.equal(isValidPrivateUsername("name@example"), false);
+});
+
+test("Ask AI shortcut is visible by default and supports a saved hidden preference", () => {
+  assert.equal(readAiButtonVisibilityPreference(null), true);
+  assert.equal(readAiButtonVisibilityPreference("shown"), true);
+  assert.equal(readAiButtonVisibilityPreference("hidden"), false);
+  assert.throws(() => readAiButtonVisibilityPreference("invalid"), /unexpected value/);
+  assert.match(html, /id="toggleHelperChat"[^>]*>Ask AI/);
+  assert.match(html, /id="showAiButton" type="checkbox" checked/);
+  assert.match(html, /id="settingsInterface" data-settings-panel="interface"/);
+  assert.match(html, /Uncheck this option to remove the Ask AI shortcut/);
+  assert.match(html, /rainbet-advisor-ai-button-visibility-v1/);
+});
+
+test("sound and vibration preferences default on and feedback avoids game outcomes", () => {
+  assert.equal(readFeedbackPreference(null, "sound-effects"), true);
+  assert.equal(readFeedbackPreference("enabled", "vibration"), true);
+  assert.equal(readFeedbackPreference("disabled", "sound-effects"), false);
+  assert.throws(() => readFeedbackPreference("invalid", "vibration"), /vibration preference has an unexpected value/);
+  assert.match(html, /<input id="soundEffects" type="checkbox" aria-describedby="soundEffectsDescription soundEffectsStatus" checked> Play subtle sound effects/);
+  assert.match(html, /Sound is on by default/);
+  assert.match(html, /<input id="vibrationFeedback" type="checkbox" aria-describedby="vibrationFeedbackDescription vibrationFeedbackStatus" checked> Play short vibration feedback/);
+  assert.match(html, /Random draws and game outcomes stay silent/);
+  assert.match(html, /id="soundEffectsStatus"[^>]*aria-live="polite"/);
+  assert.match(html, /id="vibrationFeedbackStatus"[^>]*aria-live="polite"/);
+  const cardPickerStart = mainScript.indexOf("      function bindAdvisorCardPicker()");
+  const cardPickerEnd = mainScript.indexOf("      let selectedFollowupSuit", cardPickerStart);
+  const kenoSelectionStart = mainScript.indexOf("      function toggleKenoSpot(");
+  const kenoSelectionEnd = mainScript.indexOf("      function clearKenoSelection(", kenoSelectionStart);
+  const practiceAnswerStart = mainScript.indexOf("      function answerPractice(");
+  const practiceAnswerEnd = mainScript.indexOf("      function resetLearningProgress(", practiceAnswerStart);
+  assert.match(mainScript.slice(cardPickerStart, cardPickerEnd), /playInterfaceFeedback\("selection"\)/);
+  assert.match(mainScript.slice(kenoSelectionStart, kenoSelectionEnd), /playInterfaceFeedback\(wasSelected \? "remove" : "selection"\)/);
+  assert.match(mainScript.slice(practiceAnswerStart, practiceAnswerEnd), /if \(isCorrect\) playInterfaceFeedback\("correct"\)/);
+});
+
+test("command palette searches tools and settings by names and aliases", () => {
+  const commands = [
+    {label: "Blackjack advisor", keywords: "cards strategy recommend"},
+    {label: "Keno odds", keywords: "numbers draw probability"},
+    {label: "Appearance settings", keywords: "theme colors spacing"}
+  ];
+  assert.deepEqual(filterCommandPaletteCommands(commands, ""), commands);
+  assert.deepEqual(filterCommandPaletteCommands(commands, "  BLACKJACK "), [commands[0]]);
+  assert.deepEqual(filterCommandPaletteCommands(commands, "numbers"), [commands[1]]);
+  assert.deepEqual(filterCommandPaletteCommands(commands, "theme"), [commands[2]]);
+  assert.deepEqual(filterCommandPaletteCommands(commands, "no such tool"), []);
+  assert.match(html, /id="openCommandPalette"[^>]*aria-haspopup="dialog"/);
+  assert.match(html, /id="commandPalette"[^>]*aria-labelledby="commandPaletteTitle"/);
+  assert.match(html, /id="commandPaletteSearch" type="search"/);
+  assert.match(html, /id="closeCommandPalette"/);
+  assert.match(mainScript, /event\.ctrlKey \|\| event\.metaKey/);
+  assert.match(mainScript, /event\.key === "ArrowDown"/);
+  assert.match(mainScript, /event\.key === "Escape"\)\s*\{\s*event\.preventDefault\(\);\s*if \(dialog\.open\) dialog\.close\(\);/);
+  assert.match(mainScript, /commandAfterClose = command/);
+});
+
+test("interface sounds stay lazy, soft, low-pitched, and rate-limited", () => {
+  let contextCount = 0;
+  let activeContext = null;
+  const soundEvents = [];
+  class FakeAudioContext {
+    constructor() {
+      contextCount++;
+      activeContext = this;
+      this.state = "running";
+      this.currentTime = 2;
+      this.destination = {};
+    }
+    createOscillator() {
+      return {
+        frequency: {
+          setValueAtTime(value, time) { soundEvents.push(["frequency", value, time]); },
+          exponentialRampToValueAtTime(value, time) { soundEvents.push(["frequencyRamp", value, time]); }
+        },
+        connect() {},
+        start(time) { soundEvents.push(["start", time]); },
+        stop(time) { soundEvents.push(["stop", time]); }
+      };
+    }
+    createGain() {
+      return {
+        gain: {
+          setValueAtTime(value, time) { soundEvents.push(["gain", value, time]); },
+          exponentialRampToValueAtTime(value, time) { soundEvents.push(["gainRamp", value, time]); }
+        },
+        connect() {}
+      };
+    }
+  }
+  const statuses = [];
+  const disabledSound = createInterfaceSoundPlayer(false, {AudioContext: FakeAudioContext}, (message, isError) => {
+    statuses.push({message, isError});
+  });
+  disabledSound("selection");
+  assert.equal(contextCount, 0);
+
+  const enabledSound = createInterfaceSoundPlayer(true, {AudioContext: FakeAudioContext}, (message, isError) => {
+    statuses.push({message, isError});
+  });
+  enabledSound("correct");
+  assert.equal(contextCount, 1);
+  assert.ok(soundEvents.some(([name, value]) => name === "frequency" && value === 329.63));
+  assert.ok(soundEvents.some(([name, time]) => name === "start" && time === 2));
+  assert.ok(soundEvents.some(([name, time]) => name === "stop" && Math.abs(time - 2.11) < 1e-9));
+  assert.ok(soundEvents.some(([name, value]) => name === "gainRamp" && value === 0.008));
+  const firstSoundEventCount = soundEvents.length;
+  enabledSound("correct");
+  assert.equal(soundEvents.length, firstSoundEventCount);
+  activeContext.currentTime = 2.121;
+  enabledSound("selection");
+  assert.ok(soundEvents.some(([name, value]) => name === "frequency" && value === 261.63));
+  assert.deepEqual(statuses, []);
+});
+
+test("vibration feedback uses one brief pulse, stays off when disabled, and reports unsupported devices", () => {
+  const requests = [];
+  const statuses = [];
+  const supportedWindow = {navigator: {vibrate(pattern) { requests.push(pattern); return true; }}};
+  createVibrationPlayer(false, supportedWindow, (message, isError) => statuses.push({message, isError}))();
+  assert.deepEqual(requests, []);
+  createVibrationPlayer(true, supportedWindow, (message, isError) => statuses.push({message, isError}))();
+  assert.deepEqual(requests, [12]);
+  assert.deepEqual(statuses, []);
+  const unsupportedPlayer = createVibrationPlayer(true, {navigator: {}}, (message, isError) => statuses.push({message, isError}));
+  unsupportedPlayer();
+  unsupportedPlayer();
+  assert.equal(statuses.length, 1);
+  assert.match(statuses[0].message, /not supported/);
+  assert.equal(statuses[0].isError, false);
+});
+
+test("personal stats are period-filtered, count conditional DAS as a match, and surface repeated misses", () => {
+  const entry = (time, overrides = {}) => ({
+    time,
+    cards: ["10", "6"],
+    dealer: "10",
+    playerAction: "HIT",
+    recommendedAction: "HIT",
+    alternativeAction: null,
+    result: null,
+    ...overrides
+  });
+  const entries = [
+    entry("2026-03-10T11:00:00.000Z", {playerAction: "SPLIT", recommendedAction: "SPLIT", cards: ["8", "8"], dealer: "6", result: "win"}),
+    entry("2026-03-09T11:00:00.000Z", {playerAction: "STAND", recommendedAction: "HIT", result: "loss"}),
+    entry("2026-03-08T11:00:00.000Z", {playerAction: "STAND", recommendedAction: "HIT", result: "push"}),
+    entry("2026-03-07T11:00:00.000Z", {playerAction: null, result: null}),
+    entry("2026-03-05T11:00:00.000Z", {playerAction: "DOUBLE", recommendedAction: "STAND", alternativeAction: "DOUBLE", result: "push"}),
+    entry("2026-03-01T11:00:00.000Z", {result: "loss"})
+  ];
+  const stats = calculatePersonalStats(entries, [
+    {attempts: 10, correct: 7},
+    {attempts: 3, correct: 2}
+  ], "7d", "2026-03-10T12:00:00.000Z");
+
+  assert.equal(stats.handsAdvised, 5);
+  assert.equal(stats.activeDays, 5);
+  assert.equal(stats.reviewed, 4);
+  assert.equal(stats.decisions.matched, 1);
+  assert.equal(stats.decisions.conditional, 1);
+  assert.equal(stats.decisions.different, 2);
+  assert.equal(stats.actionAccuracy, 50);
+  assert.deepEqual(stats.outcomes, {win: 1, loss: 1, push: 2});
+  assert.equal(stats.practiceAccuracy, 9 / 13 * 100);
+  assert.equal(stats.topMisses[0][1], 2);
+  assert.match(stats.topMisses[0][0], /10, 6 vs dealer 10 · STAND instead of HIT/);
+  assert.equal(calculatePersonalStats(entries, [], "all", "2026-03-10T12:00:00.000Z").handsAdvised, 6);
+  assert.throws(() => calculatePersonalStats(entries, [], "90d", "2026-03-10T12:00:00.000Z"), /supported personal stats period/);
+});
+
+test("Keno match probabilities use the published ten-number draw and gross payout units", () => {
+  const oneSpot = calculateKenoDistribution(1, 40);
+  assert.equal(oneSpot.length, 2);
+  assert.equal(oneSpot[0].probability, 0.75);
+  assert.equal(oneSpot[1].probability, 0.25);
+  for (const [spots, poolSize] of [[5, 40], [10, 56]]) {
+    const distribution = calculateKenoDistribution(spots, poolSize);
+    const totalProbability = distribution.reduce((sum, outcome) => sum + outcome.probability, 0);
+    assert.ok(Math.abs(totalProbability - 1) < 1e-12);
+  }
+  const extreme = calculateKenoDistribution(10, 56);
+  const expectedMatches = extreme.reduce((sum, outcome) => sum + outcome.matches * outcome.probability, 0);
+  assert.ok(Math.abs(expectedMatches - (100 / 56)) < 1e-12);
+  assert.equal(calculateKenoExpectedReturn(oneSpot, [0, 4]), 1);
+  assert.throws(() => calculateKenoDistribution(0, 40), /between 1 and 10/);
+  assert.throws(() => calculateKenoDistribution(5, 25), /supported Keno pool/);
+  assert.throws(() => calculateKenoExpectedReturn(oneSpot, [0, -1]), /nonnegative gross payout/);
+});
+
+test("Keno modes expose complete displayed payout tables and mode-specific return odds", () => {
+  for (const [mode, expectedPool, expectedRtp, expectedMaximum] of [
+    ["classic", 40, 0.99, 100],
+    ["low", 40, 0.99, 1000],
+    ["medium", 40, 0.99, 1000],
+    ["high", 40, 0.99, 1000],
+    ["extreme", 56, 0.98, 10000]
+  ]) {
+    const config = getKenoModeConfig(mode);
+    assert.equal(config.poolSize, expectedPool);
+    assert.equal(config.maximumMultiplier, expectedMaximum);
+    for (let spots = 1; spots <= 10; spots++) {
+      const payouts = getKenoPayoutMultipliers(mode, spots);
+      assert.equal(payouts.length, spots + 1, `${mode} ${spots}-spot table should cover every match count`);
+      assert.ok(payouts.every((payout) => Number.isFinite(payout) && payout >= 0 && payout <= expectedMaximum));
+      const distribution = calculateKenoDistribution(spots, expectedPool);
+      const totalProbability = distribution.reduce((sum, outcome) => sum + outcome.probability, 0);
+      assert.ok(Math.abs(totalProbability - 1) < 1e-12);
+      const expectedReturn = calculateKenoExpectedReturn(distribution, payouts);
+      assert.ok(Math.abs(expectedReturn - expectedRtp) < 0.02,
+        `${mode} ${spots}-spot return should match the displayed mode RTP`);
+    }
+  }
+  assert.deepEqual(getKenoPayoutMultipliers("low", 2), [0, 2, 3.8]);
+  assert.equal(getKenoPayoutMultiplier("low", 1, 0), 0.7);
+  assert.deepEqual(getKenoPayoutMultipliers("extreme", 10), [0, 0, 0, 0, 3.28, 44, 300, 1500, 5000, 8000, 10000]);
+  assert.equal(formatKenoMultiplier(1000), "1,000x");
+  assert.throws(() => getKenoModeConfig("unknown"), /supported Keno mode/);
+  assert.throws(() => getKenoPayoutMultipliers("classic", 0), /between 1 and 10/);
+  assert.throws(() => getKenoPayoutMultiplier("classic", 1, 2), /valid Keno match count/);
+});
+
+test("Keno practice draws select unique in-range numbers without replacement", () => {
+  const normalDraw = drawKenoNumbers(40, 10, () => 0);
+  assert.deepEqual(normalDraw, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  const extremeDraw = drawKenoNumbers(56, 10, () => 0.999);
+  assert.equal(extremeDraw.length, 10);
+  assert.equal(new Set(extremeDraw).size, 10);
+  assert.ok(extremeDraw.every((number) => Number.isInteger(number) && number >= 1 && number <= 56));
+  assert.throws(() => drawKenoNumbers(48, 10, () => 0), /valid Keno pool/);
+  assert.throws(() => drawKenoNumbers(40, 41, () => 0), /valid Keno pool/);
+  assert.throws(() => drawKenoNumbers(40, 10, () => 1), /random source/);
+});
+
+test("Keno spot selection toggles off and enforces the ten-spot cap", () => {
+  const selected = new Set();
+  for (let number = 1; number <= 10; number++) {
+    assert.equal(toggleKenoSelection(selected, number, 40), "added");
+  }
+  assert.equal(toggleKenoSelection(selected, 11, 40), "limit");
+  assert.equal(selected.size, 10);
+  assert.equal(toggleKenoSelection(selected, 1, 40), "removed");
+  assert.equal(toggleKenoSelection(selected, 11, 40), "added");
+  assert.throws(() => toggleKenoSelection(selected, 41, 40), /active Keno board/);
+});
+
+test("Mines survival probabilities compound without replacement and validate board limits", () => {
+  const odds = calculateMinesOdds(25, 3, 3);
+  assert.equal(odds.steps[0].chanceSafe, 22 / 25);
+  assert.equal(odds.steps[1].chanceSafe, 21 / 24);
+  assert.ok(Math.abs(odds.survivalProbability - ((22 / 25) * (21 / 24) * (20 / 23))) < 1e-12);
+  assert.equal(odds.nextPickSafeProbability, 19 / 22);
+  assert.ok(Math.abs(odds.breakEvenGrossMultiplier - 1 / odds.survivalProbability) < 1e-12);
+  assert.equal(calculateMinesOdds(64, 1, 63).survivalProbability, 1 / 64);
+  assert.equal(calculateMinesExpectedReturn(0.5, 1.9), 0.95);
+  assert.throws(() => calculateMinesOdds(25, 24, 2), /no more than the number of safe tiles/);
+  assert.throws(() => calculateMinesOdds(25, 0, 1), /number of mines must be/);
+  assert.throws(() => calculateMinesOdds(30, 2, 1), /supported Mines grid size/);
+  assert.throws(() => calculateMinesExpectedReturn(0.5, -1), /valid survival probability/);
+});
+
+test("site stats payload validation accepts aggregate metrics and rejects malformed values", () => {
+  const stats = {
+    dateRange: "30d",
+    visitors: 42,
+    visits: 58,
+    pageviews: 91,
+    visitDurationSeconds: 72.5,
+    bounceRate: 31.4,
+    topPages: [{path: "/", visitors: 42, pageviews: 50}]
+  };
+  assert.equal(isValidSiteStatsPayload(stats), true);
+  assert.equal(isValidSiteStatsPayload({...stats, bounceRate: 110}), false);
+  assert.equal(isValidSiteStatsPayload({...stats, topPages: [{path: "/", visitors: NaN, pageviews: 2}]}), false);
+});
+
+test("settings provide private account, appearance, interface, privacy, practice, and data sections", () => {
+  const moduleSource = fs.readFileSync(path.join(__dirname, "rainbet-cloud-history.mjs"), "utf8");
+  const firebaseConfig = fs.readFileSync(path.join(__dirname, "rainbet-firebase-config.js"), "utf8");
+  const renderConfig = fs.readFileSync(path.join(__dirname, "render.yaml"), "utf8");
+  ["account", "appearance", "interface", "privacy", "practice", "data"].forEach((section) => {
+    assert.match(html, new RegExp(`data-settings-target="${section}"`));
+    assert.match(html, new RegExp(`data-settings-panel="${section}"`));
+  });
+  assert.match(html, /id="themeSelect"/);
+  assert.match(html, /id="compactLayout"/);
+  assert.match(html, /id="reduceMotion"/);
+  assert.match(html, /id="showAiButton"/);
+  assert.match(html, /Private to your account and not globally unique/);
+  assert.match(moduleSource, /async loadProfile\(\)/);
+  assert.match(moduleSource, /async saveProfile\(displayName\)/);
+  assert.match(moduleSource, /async clearProfile\(\)/);
+  assert.match(firestoreRules, /match \/users\/\{userId\}\/profile\/\{profileId\}/);
+  assert.match(firestoreRules, /request\.auth\.uid == userId\s*&&\s*profileId == "current"/);
+  assert.match(firestoreRules, /displayName\.matches\("\^\[A-Za-z0-9_-\]\{3,20\}\$"\)/);
+  assert.match(html, /data-feature-target="stats"/);
+  assert.match(html, /data-feature-panel="stats"/);
+  assert.match(html, /id="personalStatsPeriod"/);
+  assert.match(html, /id="practiceStatsWeakSpots"/);
+  assert.match(html, /id="siteStatsResults"/);
+  assert.match(html, /id="loadSiteStats"/);
+  assert.match(html, /data-feature-target="keno"/);
+  assert.match(html, /data-feature-panel="keno"/);
+  assert.match(html, /id="kenoBoard"/);
+  assert.match(html, /id="kenoQuickPick"/);
+  assert.match(html, /id="kenoClearPicks"/);
+  assert.match(html, /id="kenoDrawNumbers"/);
+  assert.match(html, /id="kenoOddsRows"/);
+  assert.match(html, /Numbers 1–40 · 10 numbers drawn/);
+  assert.match(html, /option value="extreme">Extreme · 10,000× max/);
+  assert.doesNotMatch(html, /kenoPayoutInputs/);
+  assert.match(html, /data-feature-target="mines"/);
+  assert.match(html, /data-feature-panel="mines"/);
+  assert.match(html, /id="minesOddsRows"/);
+  assert.match(moduleSource, /async loadSiteStats\(dateRange\)/);
+  assert.match(firebaseConfig, /rainbetAnalyticsDomain/);
+  assert.match(renderConfig, /PLAUSIBLE_STATS_API_KEY/);
+  assert.match(renderConfig, /PLAUSIBLE_SITE_ID/);
+  assert.match(renderConfig, /SITE_STATS_ADMIN_EMAILS/);
+});
+
 test("public policy disclosures cover local data, optional providers, and current lack of payments", () => {
   assert.match(html, /id="privacyPolicyDialog"/);
   assert.match(html, /id="usagePolicyDialog"/);
@@ -64,9 +757,16 @@ test("public policy disclosures cover local data, optional providers, and curren
   assert.match(html, /offline by default/);
   assert.match(html, /does not connect to Rainbet/);
   assert.match(html, /fictional credits only/);
-  assert.match(html, /requires 12 resolved outcomes recorded in fictional-credit mode/);
+  assert.match(html, /at least 30 chronological out-of-sample predictions/);
+  assert.match(html, /approximate positive paired Brier-improvement lower bound/);
   assert.match(html, /Never use these amounts or progressions for real-money wagers/);
   assert.match(html, /No paid membership or payment feature is currently offered/);
+  assert.match(html, /Optional shared hand statistics/);
+  assert.match(html, /Existing history is not uploaded/);
+  assert.match(html, /cannot be tied back to an individual/);
+  assert.match(html, /FIREBASE_SERVICE_ACCOUNT_JSON/);
+  assert.match(firestoreRules, /match \/trainingAggregates\/\{scenarioId\}\s*\{\s*allow read, write: if false;/);
+  assert.match(firestoreRules, /match \/trainingReceipts\/\{receiptId\}\s*\{\s*allow read, write: if false;/);
   assert.match(html, /aria-label="Optional analytics preferences"/);
   assert.match(html, /Version française/);
   assert.match(serverSource, /script-src[^"]*https:\/\/plausible\.io/);
@@ -78,6 +778,22 @@ test("public page omits the strategy implementation and detailed action tables",
   assert.doesNotMatch(html, /<td>8 or less<\/td>/);
   assert.doesNotMatch(html, /Soft 13–14/);
   assert.match(html, /exact decision implementation runs on the advisor server/i);
+});
+
+test("sticky advisor recommendation stays visible with a view-advice control", () => {
+  assert.match(html, /id="stickyAdvisorRecommendation"[^>]*aria-live="polite"[^>]*hidden/);
+  assert.match(html, /id="stickyAdvisorAction"/);
+  assert.match(html, /id="stickyAdvisorHand"/);
+  assert.match(html, /id="showStickyAdvisor"/);
+  assert.match(mainScript, /syncStickyAdvisorRecommendation/);
+  assert.match(mainScript, /MutationObserver/);
+  assert.match(mainScript, /sticky\.hidden = !advisorVisible \|\| hiddenForInput \|\| moveFollowupVisible/);
+  assert.match(mainScript, /attributeFilter: \["hidden"\]/);
+});
+
+test("move follow-up panel stays in page flow to avoid covering the card table", () => {
+  assert.match(html, /\.move-action-panel\s*\{\s*margin:/);
+  assert.doesNotMatch(html, /\.move-action-panel\s*\{[^}]*position:\s*sticky/);
 });
 
 test("advisor starts empty and offers a clearly labeled example hand", () => {
@@ -118,7 +834,7 @@ const helperReply = new Function(
   mainScript.slice(helperReplyStart, appendHelperStart) + "return helperReply;"
 )();
 const helperToggleStart = mainScript.indexOf("      function setHelperChatOpen(");
-assert.ok(helperToggleStart >= 0 && helperToggleStart < helperReplyStart, "floating helper controls should be present");
+assert.ok(helperToggleStart >= 0 && helperToggleStart < helperReplyStart, "helper chat controls should be present");
 const setHelperChatOpen = new Function(
   mainScript.slice(helperToggleStart, helperReplyStart) + "return setHelperChatOpen;"
 )();
@@ -161,16 +877,18 @@ const strategy = new Function(
   "localStorage",
   "practiceReviewIntervalsDays",
   "practiceRetryDelayMinutes",
-  mainScript.slice(strategyStart, strategyEnd) + "return { handTotal, getAdvisorInputPrompt, calculateExposure, progressionUnits, replayProgression, chooseProgression, fictionalProgressionHistory, calculateSuggestedWager, classifyHistoryDecision, summarizeDecisionPatterns, historyPracticeScenarios, practiceAnswerKind, practiceScenarioKey, readLearningProgress, updateLearningProgress, practiceReviewScenarios };"
+  mainScript.slice(strategyStart, strategyEnd) + "return { handTotal, getAdvisorInputPrompt, calculateExposure, progressionUnits, fictionalWagerOutcomeHistory, handOutcomeQuarterKellyFraction, smoothOutcomeCounts, summarizeWagerOutcomes, calculateOutcomePatternModel, calculateSuggestedWager, classifyHistoryDecision, summarizeDecisionPatterns, historyPracticeScenarios, practiceAnswerKind, practiceScenarioKey, readLearningProgress, updateLearningProgress, practiceReviewScenarios };"
 )(["unknown", "allowed", "not-allowed"], parseRank, "test-learning-progress", 250, 3, learningStorage, [1, 3, 7, 14], 10);
 const {
   handTotal,
   getAdvisorInputPrompt,
   calculateExposure,
   progressionUnits,
-  replayProgression,
-  chooseProgression,
-  fictionalProgressionHistory,
+  fictionalWagerOutcomeHistory,
+  handOutcomeQuarterKellyFraction,
+  smoothOutcomeCounts,
+  summarizeWagerOutcomes,
+  calculateOutcomePatternModel,
   calculateSuggestedWager,
   classifyHistoryDecision,
   summarizeDecisionPatterns,
@@ -199,28 +917,45 @@ test("advisor asks for missing table cards before parsing or requesting advice",
 });
 
 test("feature navigation shows one feature and keeps grouped advisor panels together", () => {
-  const buttons = ["advisor", "simulator", "strategy", "practice"].map((feature) => ({
+  const buttons = ["advisor", "simulator", "strategy", "practice", "keno", "mines"].map((feature) => ({
     dataset: {featureTarget: feature},
     attributes: {},
     setAttribute(name, value) {
       this.attributes[name] = value;
     }
   }));
-  const panels = ["advisor", "advisor", "simulator", "strategy", "practice"].map((feature) => ({
+  const panels = ["advisor", "advisor", "simulator", "strategy", "practice", "keno", "mines"].map((feature) => ({
     dataset: {featurePanel: feature},
     hidden: true
   }));
 
   setActiveFeature("practice", buttons, panels);
-  assert.deepEqual(buttons.map((button) => button.attributes["aria-pressed"]), ["false", "false", "false", "true"]);
-  assert.deepEqual(panels.map((panel) => panel.hidden), [true, true, true, true, false]);
+  assert.deepEqual(buttons.map((button) => button.attributes["aria-pressed"]),
+    ["false", "false", "false", "true", "false", "false"]);
+  assert.deepEqual(panels.map((panel) => panel.hidden), [true, true, true, true, false, true, true]);
+
+  setActiveFeature("keno", buttons, panels);
+  assert.deepEqual(buttons.map((button) => button.attributes["aria-pressed"]),
+    ["false", "false", "false", "false", "true", "false"]);
+  assert.deepEqual(panels.map((panel) => panel.hidden), [true, true, true, true, true, false, true]);
+
+  setActiveFeature("mines", buttons, panels);
+  assert.deepEqual(buttons.map((button) => button.attributes["aria-pressed"]),
+    ["false", "false", "false", "false", "false", "true"]);
+  assert.deepEqual(panels.map((panel) => panel.hidden), [true, true, true, true, true, true, false]);
 
   setActiveFeature("advisor", buttons, panels);
-  assert.deepEqual(panels.map((panel) => panel.hidden), [false, false, true, true, true]);
+  assert.deepEqual(panels.map((panel) => panel.hidden), [false, false, true, true, true, true, true]);
   assert.throws(() => setActiveFeature("unknown", buttons, panels), /Unknown advisor feature/);
 });
 
-test("floating helper opens accessibly, focuses its input, and closes cleanly", () => {
+test("sticky navigation AI control opens accessibly and does not float over page content", () => {
+  const navStart = html.indexOf('<nav class="quick-nav"');
+  const navEnd = html.indexOf("</nav>", navStart);
+  assert.ok(navStart >= 0 && navEnd > navStart, "sticky feature navigation should exist");
+  assert.match(html.slice(navStart, navEnd), /id="toggleHelperChat"/);
+  assert.doesNotMatch(html, /class="ai-launcher"/);
+
   const dock = {hidden: true};
   const attributes = {};
   const launcher = {setAttribute(name, value) { attributes[name] = value; }};
@@ -248,12 +983,17 @@ test("live advisor input debounces private-server requests", () => {
     field.addEventListener = (eventName, listener) => { field.listeners[eventName] = listener; };
   });
   const calls = [];
+  const aborts = [];
+  const strategyRequestState = {
+    version: 0,
+    controller: {abort() { aborts.push(true); }}
+  };
   const timers = new Map();
   let nextTimerId = 0;
   const window = {
     clearTimeout(id) { timers.delete(id); },
     setTimeout(callback, delay) {
-      assert.equal(delay, 180);
+      assert.equal(delay, 80);
       const id = ++nextTimerId;
       timers.set(id, callback);
       return id;
@@ -262,9 +1002,10 @@ test("live advisor input debounces private-server requests", () => {
   const bindLiveAdvisorInputs = new Function(
     "byId",
     "window",
+    "strategyRequestState",
     "decide",
     mainScript.slice(liveInputBinderStart, liveInputBinderEnd) + "return bindLiveAdvisorInputs;"
-  )((id) => fields[id], window, (...args) => calls.push(args));
+  )((id) => fields[id], window, strategyRequestState, (...args) => calls.push(args));
 
   bindLiveAdvisorInputs();
   fields.playerCards.listeners.input();
@@ -274,6 +1015,9 @@ test("live advisor input debounces private-server requests", () => {
   fields.dealer.listeners.change();
   fields.doubleAllowed.listeners.change();
   fields.splitAllowed.listeners.change();
+  assert.equal(aborts.length, 1);
+  assert.equal(strategyRequestState.version, 1);
+  assert.equal(strategyRequestState.controller, null);
   assert.equal(calls.length, 0);
   assert.equal(timers.size, 1);
   Array.from(timers.values())[0]();
@@ -281,6 +1025,8 @@ test("live advisor input debounces private-server requests", () => {
 });
 
 test("visual card picker adds and removes selected cards in the advice input state", () => {
+  assert.match(html, /<select id="advisorCardRank" aria-describedby="advisorCardInstruction">/);
+  assert.match(html, /class="suit-picker" role="group" aria-labelledby="advisorSuitLabel" aria-describedby="advisorCardInstruction"/);
   function fakeElement(value = "") {
     const listeners = {};
     const classes = new Set();
@@ -313,7 +1059,9 @@ test("visual card picker adds and removes selected cards in the advice input sta
         if (this.disabled) return;
         assert.equal(typeof listeners.click, "function", "element should have a click handler");
         listeners.click();
-      }
+      },
+      scrollIntoView(options) { this.scrollOptions = options; },
+      focus(options) { this.focusOptions = options; }
     };
     let textContent = "";
     Object.defineProperty(element, "textContent", {
@@ -359,6 +1107,7 @@ test("visual card picker adds and removes selected cards in the advice input sta
     advisorSplitHandTwoCards: fakeElement(),
     advisorSplit2Cards: fakeElement(),
     advisorSplitLockNotice: fakeElement(),
+    advisorCardControls: fakeElement(),
     followupSplitOption: fakeElement(),
     followupSplitButton: fakeElement(),
     moveFollowupAction: fakeElement(),
@@ -390,6 +1139,14 @@ test("visual card picker adds and removes selected cards in the advice input sta
   const pickerEnd = mainScript.indexOf("      let selectedFollowupSuit", pickerStart);
   assert.ok(pickerStart >= 0 && pickerEnd > pickerStart, "visual card picker should be present");
   let previewUpdates = 0;
+  let prefersReducedMotion = false;
+  const fakeWindow = {
+    setTimeout() {},
+    matchMedia(query) {
+      assert.equal(query, "(prefers-reduced-motion: reduce)");
+      return {matches: prefersReducedMotion};
+    }
+  };
   const picker = new Function(
     "byId",
     "document",
@@ -397,14 +1154,24 @@ test("visual card picker adds and removes selected cards in the advice input sta
     "handTotal",
     "decide",
     "window",
-    mainScript.slice(pickerStart, pickerEnd) + "return {bindAdvisorCardPicker, setSplitVisualActive, setSplitInputAvailability};"
-  )((id) => elements[id], document, parseRank, handTotal, () => { previewUpdates++; }, {setTimeout() {}});
+    "playInterfaceFeedback",
+    "playVibrationFeedback",
+    mainScript.slice(pickerStart, pickerEnd) +
+      "return {bindAdvisorCardPicker, setSplitVisualActive, setSplitInputAvailability, updateSplitHandProgress, setSplitInitialDealStep(value) { splitInitialDealStep = value; }, setActiveSplitHand(value) { activeSplitHand = value; }, setSplitHandFinished(handNumber, value) { splitHandFinished[handNumber - 1] = value; }};"
+  )((id) => elements[id], document, parseRank, handTotal, () => { previewUpdates++; }, fakeWindow, () => {}, () => {});
 
   picker.bindAdvisorCardPicker();
   assert.equal(elements.advisorPlayerCards.children.length, 2);
   targetButtons[0].click();
   assert.equal(elements.addAdvisorCard.textContent, "Set dealer upcard");
   assert.match(elements.advisorCardInstruction.textContent, /Selected area: dealer upcard/);
+  assert.equal(targetButtons[0].attributes["aria-label"], "Choose dealer upcard as the card-entry area");
+  assert.deepEqual(elements.advisorCardControls.scrollOptions, {behavior: "smooth", block: "center"});
+  assert.deepEqual(elements.advisorCardRank.focusOptions, {preventScroll: true});
+  prefersReducedMotion = true;
+  targetButtons[1].click();
+  assert.equal(elements.advisorCardControls.scrollOptions.behavior, "auto");
+  prefersReducedMotion = false;
   targetButtons[2].click();
   assert.equal(elements.advisorCardTarget.value, "hit");
   assert.equal(targetButtons[2].attributes["aria-pressed"], "true");
@@ -436,6 +1203,25 @@ test("visual card picker adds and removes selected cards in the advice input sta
   assert.match(elements.advisorCardInstruction.textContent, /Selected area: your starting hand/);
   assert.equal(previewUpdates, 3);
 
+  const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+  targetButtons[0].click();
+  for (const rank of ranks) {
+    elements.advisorCardRank.value = rank;
+    for (const suitButton of suitButtons) {
+      suitButton.click();
+      elements.addAdvisorCard.click();
+      assert.equal(elements.dealer.value, rank);
+      assert.deepEqual(
+        elements.advisorDealerCards.children[0].children[0].children.map((part) => part.textContent),
+        [rank, {"diamonds": "♦", "hearts": "♥", "spades": "♠", "clubs": "♣"}[suitButton.dataset.advisorSuit]]
+      );
+    }
+  }
+  assert.equal(elements.playerCards.value, "10, 6", "testing every card choice preserves the starting hand");
+  targetButtons[1].click();
+  elements.advisorCardRank.value = "4";
+  suitButtons[1].click();
+
   picker.setSplitInputAvailability(true);
   targetButtons[4].click();
   assert.equal(elements.advisorCardTarget.value, "player", "split hand targets stay locked until the split is active");
@@ -445,6 +1231,18 @@ test("visual card picker adds and removes selected cards in the advice input sta
   assert.equal(elements.advisorHitZone.hidden, true);
   assert.equal(elements.advisorSplitHandOneCards.children[0].classList.contains("split-card-left"), true);
   assert.equal(elements.advisorSplitHandTwoCards.children[0].classList.contains("split-card-right"), true);
+  picker.setSplitInitialDealStep(1);
+  elements.advisorCardControls.hidden = true;
+  picker.updateSplitHandProgress();
+  assert.equal(targetButtons[3].disabled, true, "split targets stay unavailable while the move panel deals the initial cards");
+  assert.equal(targetButtons[4].disabled, true);
+  elements.advisorCardTarget.value = "split";
+  elements.addAdvisorCard.click();
+  assert.equal(elements.splitHandCards.value, "", "the card picker cannot bypass the required first card for each split hand");
+  assert.match(elements.advisorCardStatus.textContent, /using the move follow-up/);
+  picker.setSplitInitialDealStep(0);
+  elements.advisorCardControls.hidden = false;
+  picker.updateSplitHandProgress();
   targetButtons[3].click();
   elements.addAdvisorCard.click();
   assert.equal(elements.splitHandCards.value, "4");
@@ -456,11 +1254,31 @@ test("visual card picker adds and removes selected cards in the advice input sta
   );
   targetButtons[4].click();
   assert.equal(elements.advisorCardTarget.value, "split", "only the active hand can receive cards");
+  picker.setSplitHandFinished(1, true);
+  picker.setActiveSplitHand(2);
+  picker.updateSplitHandProgress();
+  assert.equal(targetButtons[3].disabled, true, "the completed hand cannot be selected");
+  assert.equal(targetButtons[4].disabled, false, "the next hand becomes selectable");
+  targetButtons[4].click();
+  elements.advisorCardRank.value = "7";
+  suitButtons[3].click();
+  elements.addAdvisorCard.click();
+  assert.equal(elements.splitHand2Cards.value, "7");
+  assert.deepEqual(
+    elements.advisorSplitHandTwoCards.children[1].children[0].children.map((part) => part.textContent),
+    ["7", "♣"]
+  );
+  elements.advisorSplitHandTwoCards.children[1].children[1].click();
+  assert.equal(elements.splitHand2Cards.value, "");
 
   picker.setSplitVisualActive(false);
   assert.equal(elements.advisorSplitPresentation.hidden, true);
   assert.equal(elements.advisorPlayerZone.hidden, false);
   assert.equal(elements.advisorHitZone.hidden, false);
+  elements.advisorCardControls.hidden = true;
+  picker.setSplitInputAvailability(false);
+  assert.equal(elements.advisorCardControls.hidden, false, "leaving split mode restores the card picker");
+  assert.equal(elements.splitHandCards.value, "");
 });
 
 test("move follow-up records a hit card and shows the updated next action", async () => {
@@ -547,6 +1365,123 @@ test("move follow-up records a hit card and shows the updated next action", asyn
   assert.match(elements.moveFollowupResponse.textContent, /Next basic-strategy advice: STAND/);
   assert.equal(elements.moveFollowup.hidden, true);
   assert.equal(previewUpdates, 1);
+});
+
+test("standing on split hand 1 advances advice to split hand 2", async () => {
+  const elements = {
+    moveFollowupAction: {value: "STAND"},
+    moveFollowupResponse: {textContent: ""},
+    moveFollowup: {hidden: false},
+    moveActionPanel: {hidden: false},
+    moveActionButtons: {hidden: false},
+    advisorCardControls: {hidden: true}
+  };
+  const splitHandFinished = [true, false];
+  const selectedTargets = [];
+  let decisionCount = 0;
+  const advanceStart = mainScript.indexOf("      async function advanceSplitHand(");
+  const advanceEnd = mainScript.indexOf("      function currentFinalPlayerCardRanks()", advanceStart);
+  assert.ok(advanceStart >= 0 && advanceEnd > advanceStart, "split-hand advance function should be present");
+  const state = new Function(
+    "byId",
+    "splitHandFinished",
+    "selectAdvisorCardTarget",
+    "updateMoveFollowupControls",
+    "decide",
+    "beginDealerTurn",
+    "let activeSplitHand = 1;" +
+      mainScript.slice(advanceStart, advanceEnd) +
+      "return {advanceSplitHand, get activeSplitHand() { return activeSplitHand; }};"
+  )(
+    (id) => elements[id],
+    splitHandFinished,
+    (target) => selectedTargets.push(target),
+    () => {},
+    async () => { decisionCount++; },
+    () => { throw new Error("dealer turn should not start while split hand 2 is unfinished"); }
+  );
+
+  await state.advanceSplitHand("Split hand 1 stood.");
+  assert.equal(state.activeSplitHand, 2);
+  assert.deepEqual(selectedTargets, ["split2"]);
+  assert.equal(elements.moveFollowupResponse.textContent, "Split hand 1 stood. Now play split hand 2.");
+  assert.equal(decisionCount, 1);
+});
+
+test("split aces auto-stand both hands after their initial cards", async () => {
+  const elements = {
+    moveFollowupAction: {value: "SPLIT"},
+    moveFollowupRank: {value: "4"},
+    moveFollowupResponse: {textContent: ""},
+    splitHandCards: {value: "2"},
+    splitHand2Cards: {value: ""}
+  };
+  const advisorCardState = {
+    player: [{rank: "A", suit: "spades"}, {rank: "A", suit: "hearts"}],
+    dealer: [],
+    hit: [],
+    split: [{rank: "2", suit: "clubs"}],
+    split2: []
+  };
+  const finished = [false, false];
+  const results = [];
+  let advanceReason = "";
+  const applyStart = mainScript.indexOf("      async function applyMoveFollowup() {");
+  const applyEnd = mainScript.indexOf("      function bindMoveFollowup()", applyStart);
+  const applyMoveFollowup = new Function(
+    "byId",
+    "parseRank",
+    "handTotal",
+    "advisorCardSuits",
+    "advisorCardState",
+    "splitInputWasAvailable",
+    "selectedFollowupSuit",
+    "syncAdvisorCardValues",
+    "renderAdvisorCardPicker",
+    "document",
+    "decide",
+    "dealerTurnActive",
+    "addDealerTurnCard",
+    "beginDealerTurn",
+    "splitVisualActive",
+    "splitInitialDealStep",
+    "activeSplitHand",
+    "splitHandFinished",
+    "markSplitHandFinished",
+    "advanceSplitHand",
+    mainScript.slice(applyStart, applyEnd) + "return applyMoveFollowup;"
+  )(
+    (id) => elements[id],
+    parseRank,
+    handTotal,
+    [{id: "hearts", name: "Hearts"}],
+    advisorCardState,
+    true,
+    "hearts",
+    () => { elements.splitHand2Cards.value = advisorCardState.split2.map((card) => card.rank).join(", "); },
+    () => {},
+    {querySelectorAll() { return []; }},
+    async () => {},
+    false,
+    () => {},
+    () => {},
+    true,
+    2,
+    2,
+    finished,
+    (handNumber, result) => {
+      finished[handNumber - 1] = true;
+      results[handNumber - 1] = result;
+    },
+    async (reason) => { advanceReason = reason; }
+  );
+
+  await applyMoveFollowup();
+  assert.deepEqual(advisorCardState.split2, [{rank: "4", suit: "hearts"}]);
+  assert.deepEqual(finished, [true, true]);
+  assert.match(results[0], /stood automatically/i);
+  assert.match(results[1], /stood automatically/i);
+  assert.equal(advanceReason, "Both split hands received their first card.");
 });
 
 test("choosing a move records the first action in the current history entry", () => {
@@ -763,21 +1698,23 @@ test("reaching 21 after a hit automatically starts dealer entry", async () => {
 
 test("offline helper answers site topics and explains the current preview without predicting outcomes", () => {
   for (const greeting of ["hi", "Hi!", "hello", "hey there", "good morning"]) {
-    assert.match(helperReply(greeting), /^Hi! I can help/);
+    assert.match(helperReply(greeting), /Keno and Mines odds tools/);
   }
+  assert.match(helperReply("How do Keno and Mines odds work?"), /tap 1–10 board numbers.*draw 10 practice numbers/s);
   assert.match(helperReply("What is DAS?"), /DAS means double after split/);
   assert.match(helperReply("How do I use the advisor?"), /click Add here/);
   assert.match(helperReply("How does the simulator work?"), /fictional credits/);
   assert.match(helperReply("How does practice learning work?"), /missed scenarios return sooner/);
   assert.match(helperReply("Are you as capable as you?"), /not a general-purpose generative AI/);
-  assert.match(helperReply("How much should I wager?"), /fictional credits/);
+  assert.match(helperReply("How much should I wager?"), /fictional pre-deal amounts/);
+  assert.match(helperReply("How much should I wager?"), /recent-20 W\/P\/L pattern/);
   assert.match(helperReply("What is a soft hand?"), /ace currently counted as 11/);
   assert.match(helperReply("What does split mean?"), /separates a pair into two hands/);
   assert.match(helperReply("What does 3:2 mean?"), /1\.5 times the original wager/);
   assert.match(helperReply("Can I count cards?"), /does not count cards/);
   assert.match(helperReply("What factors does the advisor use?"), /8-deck S17 rank-probability model/);
   assert.match(helperReply("What factors does the advisor use?"), /does not track earlier hands/);
-  assert.match(helperReply("I want the advisor to learn based on history of past bets"), /recorded decisions/);
+  assert.match(helperReply("I want the advisor to learn based on history of past bets"), /smoothed recent-history and first-action W\/P\/L summaries/);
   assert.match(helperReply("What is the house edge?"), /long-run expected loss/);
   assert.match(helperReply("Can I predict the next card?"), /cannot predict cards/);
   assert.match(helperReply("Does this connect to my account?"), /does not connect to your Rainbet account/);
@@ -1110,6 +2047,65 @@ test("pair decisions match the chart and show conditional DAS alternatives", () 
   }
 });
 
+test("advisor accepts every two-card rank pair across dealer cards and table-rule settings", () => {
+  const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+  const rankCard = (rank) => ({
+    rank,
+    value: rank === "A" ? 11 : ["J", "Q", "K"].includes(rank) ? 10 : Number(rank)
+  });
+  const actions = new Set(["HIT", "STAND", "DOUBLE", "SPLIT"]);
+  let cases = 0;
+  for (const firstRank of ranks) {
+    for (const secondRank of ranks) {
+      for (const dealer of dealerCards) {
+        for (const doubleAllowed of [false, true]) {
+          for (const splitAllowed of [false, true]) {
+            for (const dasRule of ["unknown", "allowed", "not-allowed"]) {
+              const result = actionFor([rankCard(firstRank), rankCard(secondRank)], card(dealer), {
+                doubleAllowed,
+                splitAllowed,
+                dasRule
+              });
+              assert.ok(actions.has(result.action), `${firstRank},${secondRank} vs ${dealer}: action`);
+              assert.ok(result.alternativeAction === null || actions.has(result.alternativeAction));
+              assert.ok(Number.isInteger(result.hand.total) && result.hand.total >= 2 && result.hand.total <= 21);
+              cases++;
+            }
+          }
+        }
+      }
+    }
+  }
+  assert.equal(cases, ranks.length ** 2 * dealerCards.length * 2 * 2 * 3);
+});
+
+test("advisor accepts all three-card rank combinations against every dealer upcard", () => {
+  const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+  const rankCard = (rank) => ({
+    rank,
+    value: rank === "A" ? 11 : ["J", "Q", "K"].includes(rank) ? 10 : Number(rank)
+  });
+  const actions = new Set(["HIT", "STAND", "DOUBLE"]);
+  let cases = 0;
+  for (const firstRank of ranks) {
+    for (const secondRank of ranks) {
+      for (const thirdRank of ranks) {
+        for (const dealer of dealerCards) {
+          const result = actionFor(
+            [rankCard(firstRank), rankCard(secondRank), rankCard(thirdRank)],
+            card(dealer),
+            {doubleAllowed: true, splitAllowed: false, dasRule: "unknown"}
+          );
+          assert.ok(actions.has(result.action), `${firstRank},${secondRank},${thirdRank} vs ${dealer}: action`);
+          assert.ok(Number.isInteger(result.hand.total) && result.hand.total >= 3 && result.hand.total <= 30);
+          cases++;
+        }
+      }
+    }
+  }
+  assert.equal(cases, ranks.length ** 3 * dealerCards.length);
+});
+
 test("8-deck expected-value analysis compares available actions with a replacement approximation", () => {
   const soft17 = expectedValueActionAnalysis([card("A"), card(6)], card(3), {
     doubleAllowed: true,
@@ -1120,11 +2116,42 @@ test("8-deck expected-value analysis compares available actions with a replaceme
   assert.ok(soft17.values.hit > soft17.values.stand);
   assert.equal(soft17.shoe, "8-deck S17 rank probabilities (replacement approximation)");
   assert.equal(soft17.unit, "initial wager");
+  for (const action of ["hit", "stand", "double"]) {
+    const probabilities = soft17.outcomeProbabilities[action];
+    assert.ok(probabilities, `${action} outcome probabilities are available`);
+    assert.ok(Math.abs(probabilities.win + probabilities.push + probabilities.loss - 1) < 1e-12);
+  }
+  assert.ok(Math.abs(soft17.values.double -
+    2 * (soft17.outcomeProbabilities.double.win - soft17.outcomeProbabilities.double.loss)) < 1e-12,
+  "double EV reflects twice the initial wager");
 
   assert.equal(expectedValueActionAnalysis([card(10), card(6)], card(10), {
     doubleAllowed: true,
     afterSplit: false
   }), null);
+});
+
+test("current-hand outcome distributions normalize for all supported starting hands and dealer upcards", () => {
+  const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+  for (const first of ranks) {
+    for (const second of ranks) {
+      for (const dealer of [2, 3, 4, 5, 6, 7, 8, 9]) {
+        const analysis = expectedValueActionAnalysis([card(first), card(second)], card(dealer), {
+          doubleAllowed: true,
+          afterSplit: false
+        });
+        assert.ok(analysis);
+        for (const [action, outcomes] of Object.entries(analysis.outcomeProbabilities)) {
+          assert.ok(Math.abs(outcomes.win + outcomes.push + outcomes.loss - 1) < 1e-12,
+            `${first},${second} vs ${dealer} ${action} probabilities sum to one`);
+        }
+        if (analysis.values.double !== undefined) {
+          assert.ok(Math.abs(analysis.values.double -
+            2 * (analysis.outcomeProbabilities.double.win - analysis.outcomeProbabilities.double.loss)) < 1e-12);
+        }
+      }
+    }
+  }
 });
 
 test("advisor answer identifies the hand and rule factors used for its recommendation", () => {
@@ -1162,6 +2189,30 @@ test("unsplittable aces use hit instead of soft-12 double advice", () => {
     });
     assert.equal(result.action, "HIT", `A,A vs ${dealer}`);
   }
+});
+
+test("split aces automatically stand after receiving one card", () => {
+  const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+  const rankCard = (rank) => ({
+    rank,
+    value: rank === "A" ? 11 : ["J", "Q", "K"].includes(rank) ? 10 : Number(rank)
+  });
+  let cases = 0;
+  for (const drawRank of ranks) {
+    for (const dealer of dealerCards) {
+      const result = actionForContext([card("A"), rankCard(drawRank)], card(dealer), {
+        doubleAllowed: true,
+        splitAllowed: false,
+        dasRule: "allowed",
+        afterSplit: true
+      });
+      assert.equal(result.action, "STAND", `split A,${drawRank} vs ${dealer}`);
+      assert.equal(result.alternativeAction, null);
+      assert.match(result.explanation, /split-ace rule.*one card.*stands automatically/i);
+      cases++;
+    }
+  }
+  assert.equal(cases, ranks.length * dealerCards.length);
 });
 
 test("hand-history review distinguishes matches, conditional DAS, and unrecorded actions", () => {
@@ -1284,6 +2335,75 @@ test("history search matches cards, dealer, action, result, and pending hands", 
   assert.equal(historyMatchesSearch(entry, "win"), false);
 });
 
+test("history search coalesces typing and updates only the filtered list", () => {
+  const rendererStart = mainScript.indexOf("      function renderHistoryEntries(entries) {");
+  const rendererEnd = mainScript.indexOf("      function refreshHistorySearchResults() {", rendererStart);
+  assert.ok(rendererStart >= 0 && rendererEnd > rendererStart, "history list renderer should exist");
+
+  const elements = {
+    historyList: {
+      children: [],
+      textContent: "",
+      appendChild(item) { this.children.push(item); }
+    },
+    historySearch: {value: "split"},
+    historyFilterSummary: {textContent: ""}
+  };
+  const renderHistoryEntries = new Function(
+    "byId",
+    "document",
+    "historyMatchesSearch",
+    "classifyHistoryDecision",
+    mainScript.slice(rendererStart, rendererEnd) + "return renderHistoryEntries;"
+  )((id) => elements[id], {createElement: () => ({textContent: ""})},
+  historyMatchesSearch, classifyHistoryDecisionForStats);
+  const entries = [
+    {time: "2026-10-12T10:00:00.000Z", cards: ["8", "8"], dealer: "10", playerAction: "SPLIT", result: "loss"},
+    {time: "2026-10-13T10:00:00.000Z", cards: ["9", "7"], dealer: "A", result: null}
+  ];
+
+  renderHistoryEntries(entries);
+  assert.equal(elements.historyList.children.length, 1);
+  assert.match(elements.historyList.children[0].textContent, /8, 8 vs\. 10/);
+  assert.equal(elements.historyFilterSummary.textContent, "1 of 2 saved hands match.");
+
+  const searchRefreshStart = rendererEnd;
+  const searchRefreshEnd = mainScript.indexOf("      let historySearchTimer = null;", searchRefreshStart);
+  assert.ok(searchRefreshEnd > searchRefreshStart, "search-only refresh should exist");
+  let renderedEntries;
+  const refreshHistorySearchResults = new Function(
+    "byId",
+    "readHistory",
+    "renderHistoryEntries",
+    mainScript.slice(searchRefreshStart, searchRefreshEnd) + "return refreshHistorySearchResults;"
+  )((id) => elements[id], () => entries, (value) => { renderedEntries = value; });
+  refreshHistorySearchResults();
+  assert.equal(renderedEntries, entries);
+
+  const timerEnd = mainScript.indexOf("      function refreshHistory() {", searchRefreshEnd);
+  const timers = new Map();
+  let timerId = 0;
+  let refreshCount = 0;
+  const scheduleHistorySearchRefresh = new Function(
+    "window",
+    "refreshHistorySearchResults",
+    mainScript.slice(searchRefreshEnd, timerEnd) + "return scheduleHistorySearchRefresh;"
+  )({
+    clearTimeout(id) { timers.delete(id); },
+    setTimeout(callback) {
+      const id = ++timerId;
+      timers.set(id, callback);
+      return id;
+    }
+  }, () => { refreshCount++; });
+  scheduleHistorySearchRefresh();
+  scheduleHistorySearchRefresh();
+  scheduleHistorySearchRefresh();
+  assert.equal(timers.size, 1);
+  Array.from(timers.values())[0]();
+  assert.equal(refreshCount, 1);
+});
+
 test("cloud history merge deduplicates entries, favors newer edits, and caps saved records", () => {
   const older = {
     consultationId: "same-hand",
@@ -1333,7 +2453,7 @@ test("balance exposure reports only the user's chosen amount", () => {
   assert.throws(() => calculateExposure(100, 0), /amount greater than zero/);
 });
 
-test("fictional progression sizing uses bankroll, recent practice outcomes, exposure, and session loss", () => {
+test("Auto sizes fictional wagers from recorded outcomes and returns while respecting risk caps", () => {
   assert.equal(calculateSuggestedWager({
     enabled: false,
     balance: 1000,
@@ -1354,6 +2474,69 @@ test("fictional progression sizing uses bankroll, recent practice outcomes, expo
   assert.equal(baseline.amount, 10);
   assert.equal(baseline.strategy, "flat");
   assert.equal(baseline.baseUnit, 10);
+  assert.equal(baseline.strategyReason, "practice-baseline");
+
+  const winHeavyHistory = [
+    ...Array.from({length: 70}, () => ({result: "win"})),
+    ...Array.from({length: 30}, () => ({result: "loss"}))
+  ];
+  const lossHeavyHistory = [
+    ...Array.from({length: 30}, () => ({result: "win"})),
+    ...Array.from({length: 70}, () => ({result: "loss"}))
+  ];
+  const historyHigh = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: winHeavyHistory,
+    action: "HIT"
+  });
+  const historyLow = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: lossHeavyHistory,
+    action: "HIT"
+  });
+  assert.equal(historyHigh.amount, 10);
+  assert.equal(historyLow.amount, 10);
+  assert.equal(historyHigh.historyWeight, 0);
+  assert.equal(historyLow.historyWeight, 0);
+  assert.equal(historyHigh.historyValidation.samples, 0,
+    "untimed W/P/L history cannot pass chronological validation");
+
+  const historyIndependentOfCurrentHand = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: winHeavyHistory,
+    action: "DOUBLE",
+    analysis: {
+      outcomeProbabilities: {
+        double: {win: 0.9, push: 0.05, loss: 0.05}
+      }
+    }
+  });
+  const alternativeCurrentHand = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: winHeavyHistory,
+    action: "SPLIT",
+    analysis: {
+      outcomeProbabilities: {
+        split: {win: 0.05, push: 0.05, loss: 0.9}
+      }
+    }
+  });
+  assert.equal(historyIndependentOfCurrentHand.amount, 10);
+  assert.equal(alternativeCurrentHand.amount, 10);
+  assert.equal(historyIndependentOfCurrentHand.exposureMultiplier, 4);
+  assert.equal(historyIndependentOfCurrentHand.historyWeight, 0);
 
   const martingale = calculateSuggestedWager({
     enabled: true,
@@ -1384,39 +2567,307 @@ test("fictional progression sizing uses bankroll, recent practice outcomes, expo
   });
   assert.equal(limited.amount, 0);
   assert.equal(limited.reason, "risk-budget-limited");
-  assert.equal(limited.exposureMultiplier, 2);
+  assert.equal(limited.exposureMultiplier, 4);
 
   assert.equal(progressionUnits("martingale", [{result: "loss"}, {result: "loss"}]), 4);
   assert.equal(progressionUnits("dalembert", [{result: "loss"}, {result: "win"}]), 1);
   assert.equal(progressionUnits("paroli", [{result: "win"}, {result: "win"}]), 4);
-  const shortHistoryChoice = chooseProgression(Array.from({length: 5}, () => ({result: "win"})));
-  assert.equal(shortHistoryChoice.strategy, "flat");
-  assert.match(shortHistoryChoice.reason, /twelve resolved/);
-  const autoChoice = chooseProgression(Array.from({length: 12}, () => ({result: "win"})));
-  assert.equal(autoChoice.strategy, "paroli");
-  assert.equal(autoChoice.replay.endingBalance, 135);
-  assert.equal(autoChoice.alternatives.length, 4);
-  assert.ok(autoChoice.alternatives.every((item) =>
-    Number.isFinite(item.meanReturn) && Number.isFinite(item.worstDrawdown) && item.bustedWindows === 0
-  ));
-  const autoSuggestion = calculateSuggestedWager({
+  const allWins = Array.from({length: 12}, () =>
+    ({result: "win", wagerAmount: 10, netResult: 10}));
+  const allLosses = Array.from({length: 12}, () =>
+    ({result: "loss", wagerAmount: 500, netResult: -500}));
+  const autoAfterWins = calculateSuggestedWager({
     enabled: true,
     balance: 1000,
     sessionLossLimit: null,
     sessionNet: 0,
-    recentHands: Array.from({length: 12}, () =>
-      ({result: "win", wagerAmount: 10, netResult: 10})),
+    recentHands: allWins,
     action: "HIT"
   });
-  assert.equal(autoSuggestion.strategy, "paroli");
-  assert.equal(autoSuggestion.amount, 40);
-  assert.deepEqual(fictionalProgressionHistory([
+  const autoAfterLosses = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: allLosses,
+    action: "HIT"
+  });
+  assert.equal(autoAfterWins.strategy, "flat");
+  assert.equal(autoAfterWins.amount, 10);
+  assert.equal(autoAfterLosses.strategy, "flat");
+  assert.equal(autoAfterLosses.amount, autoAfterWins.amount);
+  assert.equal(autoAfterLosses.baseUnit, autoAfterWins.baseUnit);
+  const smallSample = summarizeWagerOutcomes([
+    ...Array.from({length: 6}, () => ({result: "win"})),
+    ...Array.from({length: 6}, () => ({result: "loss"}))
+  ]);
+  assert.equal(smallSample.sampleSize, 12);
+  assert.equal(smallSample.wins, 6);
+  assert.equal(smallSample.losses, 6);
+  assert.equal(smallSample.pushes, 0);
+  assert.equal(smallSample.practiceFraction, 0.01, "small samples retain the practice unit");
+  assert.ok(smallSample.winInterval.upper > 0.5, "small-sample uncertainty includes 50%");
+
+  const supportedWinRate = summarizeWagerOutcomes([
+    ...Array.from({length: 70}, () => ({result: "win"})),
+    ...Array.from({length: 30}, () => ({result: "loss"}))
+  ]);
+  assert.equal(supportedWinRate.winRate, 0.7);
+  assert.ok(supportedWinRate.winInterval.lower > 0.5);
+  assert.equal(supportedWinRate.returnSampleSize, 0, "win rate alone does not determine stake size");
+  assert.equal(supportedWinRate.practiceFraction, 0.01);
+  assert.ok(handOutcomeQuarterKellyFraction({win: 0.6, push: 0.1, loss: 0.3}, "HIT") > 0);
+  assert.equal(handOutcomeQuarterKellyFraction({win: 0.4, push: 0.1, loss: 0.5}, "DOUBLE"), 0);
+  assert.equal(handOutcomeQuarterKellyFraction({win: 0.6, push: 0.1, loss: 0.3}, "DOUBLE"), 0.01,
+    "modeled double sizing uses doubled exposure and remains capped at 1%");
+  assert.throws(() => handOutcomeQuarterKellyFraction({win: 0.6, push: 0.1, loss: 0.4}, "HIT"),
+    /unexpected format/);
+  const modeledPositive = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: [],
+    action: "DOUBLE",
+    analysis: {
+      outcomeProbabilities: {
+        double: {win: 0.6, push: 0.1, loss: 0.3}
+      }
+    }
+  });
+  assert.equal(modeledPositive.amount, 10);
+  assert.equal(modeledPositive.sizingBasis, "practice-baseline");
+  const modeledNegative = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: [],
+    action: "DOUBLE",
+    analysis: {
+      outcomeProbabilities: {
+        double: {win: 0.4, push: 0.1, loss: 0.5}
+      }
+    }
+  });
+  assert.equal(modeledNegative.amount, 10);
+  assert.equal(modeledNegative.reason, "ready");
+  const supportedLossRate = summarizeWagerOutcomes([
+    ...Array.from({length: 30}, () => ({result: "win"})),
+    ...Array.from({length: 70}, () => ({result: "loss"}))
+  ]);
+  assert.equal(supportedLossRate.practiceFraction, 0.01);
+  const withPushes = summarizeWagerOutcomes([
+    ...Array.from({length: 10}, () => ({result: "win"})),
+    ...Array.from({length: 10}, () => ({result: "loss"})),
+    ...Array.from({length: 10}, () => ({result: "push"}))
+  ]);
+  assert.equal(withPushes.winRate, 0.5);
+  assert.equal(withPushes.pushRate, 1 / 3);
+  assert.equal(withPushes.practiceFraction, 0.01);
+  const actionHistory = summarizeWagerOutcomes([
+    ...Array.from({length: 8}, () => ({result: "win", playerAction: "DOUBLE"})),
+    {result: "push", playerAction: "DOUBLE"},
+    {result: "loss", playerAction: "DOUBLE"},
+    ...Array.from({length: 10}, () => ({result: "loss", playerAction: "STAND"}))
+  ]);
+  assert.equal(actionHistory.actionOutcomes.DOUBLE.sampleSize, 10);
+  assert.equal(actionHistory.actionOutcomes.DOUBLE.pushes, 1);
+  assert.equal(actionHistory.actionOutcomes.SPLIT.sampleSize, 0);
+  const shrunkDoubleOutcomes = smoothOutcomeCounts(
+    {wins: 8, pushes: 1, losses: 1},
+    {win: 0.4, push: 0.2, loss: 0.4}
+  );
+  assert.deepEqual(shrunkDoubleOutcomes, {
+    win: 16 / 30,
+    push: 5 / 30,
+    loss: 9 / 30
+  });
+  assert.ok(Math.abs(Object.values(shrunkDoubleOutcomes)
+    .reduce((sum, probability) => sum + probability, 0) - 1) < 1e-12);
+
+  const makeActionHistory = (double, stand) => [
+    ...Array.from({length: double.wins}, () => ({result: "win", playerAction: "DOUBLE"})),
+    ...Array.from({length: double.pushes}, () => ({result: "push", playerAction: "DOUBLE"})),
+    ...Array.from({length: double.losses}, () => ({result: "loss", playerAction: "DOUBLE"})),
+    ...Array.from({length: stand.wins}, () => ({result: "win", playerAction: "STAND"})),
+    ...Array.from({length: stand.pushes}, () => ({result: "push", playerAction: "STAND"})),
+    ...Array.from({length: stand.losses}, () => ({result: "loss", playerAction: "STAND"}))
+  ];
+  const doubleWinHistory = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: makeActionHistory(
+      {wins: 24, pushes: 2, losses: 4},
+      {wins: 20, pushes: 5, losses: 45}
+    ),
+    action: "DOUBLE"
+  });
+  const doubleLossHistory = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: makeActionHistory(
+      {wins: 6, pushes: 2, losses: 22},
+      {wins: 38, pushes: 5, losses: 27}
+    ),
+    action: "DOUBLE"
+  });
+  assert.equal(doubleWinHistory.outcomeEstimate.actionOutcomes.DOUBLE.sampleSize, 30);
+  assert.equal(doubleWinHistory.outcomeEstimate.actionOutcomes.DOUBLE.pushes, 2);
+  assert.equal(doubleWinHistory.amount, 10);
+  assert.equal(doubleLossHistory.amount, 10,
+    "first-action outcome differences must not change a pre-deal suggestion");
+  assert.equal(doubleWinHistory.historyValidation.samples, 0);
+  const splitHistory = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: makeActionHistory(
+      {wins: 6, pushes: 2, losses: 22},
+      {wins: 38, pushes: 5, losses: 27}
+    ).map((hand) => hand.playerAction === "DOUBLE"
+      ? {...hand, playerAction: "SPLIT"}
+      : hand),
+    action: "SPLIT"
+  });
+  const splitWinHistory = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: makeActionHistory(
+      {wins: 24, pushes: 2, losses: 4},
+      {wins: 20, pushes: 5, losses: 45}
+    ).map((hand) => hand.playerAction === "DOUBLE"
+      ? {...hand, playerAction: "SPLIT"}
+      : hand),
+    action: "SPLIT"
+  });
+  assert.equal(splitHistory.outcomeEstimate.actionOutcomes.SPLIT.sampleSize, 30);
+  assert.equal(splitHistory.outcomeEstimate.actionOutcomes.SPLIT.pushes, 2);
+  assert.equal(splitWinHistory.amount, splitHistory.amount,
+    "round-level split results remain descriptive, not pre-deal sizing inputs");
+
+  const limitedExactSample = summarizeWagerOutcomes(Array.from({length: 12}, () =>
+    ({result: "win", wagerAmount: 10, netResult: 15, netResultExact: true})));
+  assert.equal(limitedExactSample.returnLowerBound, null);
+  assert.equal(limitedExactSample.practiceFraction, 0.01);
+  assert.throws(() => summarizeWagerOutcomes(Array.from({length: 30}, () =>
+    ({result: "win", wagerAmount: 1, netResult: Number.MAX_VALUE / 2, netResultExact: true}))),
+  /too large to estimate safely/);
+
+  const positiveReturnHands = Array.from({length: 70}, () =>
+    ({result: "win", wagerAmount: 10, netResult: 10, netResultExact: true}))
+    .concat(Array.from({length: 30}, () =>
+      ({result: "loss", wagerAmount: 10, netResult: -10, netResultExact: true})));
+  const supportedReturns = summarizeWagerOutcomes(positiveReturnHands);
+  assert.equal(supportedReturns.returnSampleSize, 100);
+  assert.equal(supportedReturns.meanReturn, 0.4);
+  assert.ok(supportedReturns.returnLowerBound > 0);
+  assert.equal(supportedReturns.kellyFraction, 0.02, "quarter Kelly is capped at 2% of bankroll");
+  assert.equal(supportedReturns.practiceFraction, 0.02);
+  const positiveReturnSuggestion = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: positiveReturnHands,
+    action: "HIT"
+  });
+  assert.equal(positiveReturnSuggestion.amount, 20);
+  assert.equal(positiveReturnSuggestion.practiceFraction, 0.02);
+
+  const negativeReturnHands = Array.from({length: 30}, () =>
+    ({result: "win", wagerAmount: 10, netResult: 10, netResultExact: true}))
+    .concat(Array.from({length: 70}, () =>
+      ({result: "loss", wagerAmount: 10, netResult: -10, netResultExact: true})));
+  const supportedNegativeReturns = summarizeWagerOutcomes(negativeReturnHands);
+  assert.ok(supportedNegativeReturns.returnUpperBound < 0);
+  assert.equal(supportedNegativeReturns.sizingBasis, "negative-edge-no-wager");
+  const negativeReturnSuggestion = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: negativeReturnHands,
+    action: "HIT",
+    analysis: {
+      outcomeProbabilities: {
+        hit: {win: 0.6, push: 0.1, loss: 0.3}
+      }
+    }
+  });
+  assert.equal(negativeReturnSuggestion.amount, 0);
+  assert.equal(negativeReturnSuggestion.reason, "negative-edge");
+
+  const uncertainReturnHands = Array.from({length: 55}, () =>
+    ({result: "win", wagerAmount: 10, netResult: 10, netResultExact: true}))
+    .concat(Array.from({length: 45}, () =>
+      ({result: "loss", wagerAmount: 10, netResult: -10, netResultExact: true})));
+  const uncertainReturns = summarizeWagerOutcomes(uncertainReturnHands);
+  assert.ok(uncertainReturns.returnLowerBound <= 0);
+  assert.ok(uncertainReturns.returnUpperBound >= 0);
+  assert.equal(uncertainReturns.practiceFraction, 0.01, "uncertain edge retains a small practice unit");
+
+  const unequalWagers = summarizeWagerOutcomes([
+    ...Array.from({length: 70}, () =>
+      ({result: "win", wagerAmount: 20, netResult: 20, netResultExact: true})),
+    ...Array.from({length: 30}, () =>
+      ({result: "loss", wagerAmount: 5, netResult: -5, netResultExact: true}))
+  ]);
+  assert.ok(Math.abs(unequalWagers.meanReturn - 0.8064516129032258) < 1e-12,
+    "return estimate reflects total net results over total recorded wager exposure");
+  assert.ok(unequalWagers.returnEffectiveSampleSize < unequalWagers.returnSampleSize,
+    "unequal wager sizes reduce the effective sample size");
+  assert.equal(summarizeWagerOutcomes(positiveReturnHands.map(({netResultExact, ...hand}) => hand))
+    .returnSampleSize, 0, "assumed default payouts are not used as exact return data");
+
+  const inferredReturnHands = [
+    ...Array.from({length: 70}, () => ({
+      result: "win", wagerAmount: 20, playerAction: "STAND", cards: ["10", "7"],
+      netResultExact: false, fictionalCredits: true
+    })),
+    ...Array.from({length: 30}, () => ({
+      result: "loss", wagerAmount: 5, playerAction: "HIT", cards: ["9", "8"],
+      netResultExact: false, fictionalCredits: true
+    }))
+  ];
+  const inferredReturns = summarizeWagerOutcomes(inferredReturnHands);
+  assert.equal(inferredReturns.returnSampleSize, 100);
+  assert.equal(inferredReturns.exactReturnSampleSize, 0);
+  assert.equal(inferredReturns.inferredReturnSampleSize, 100);
+  assert.ok(Math.abs(inferredReturns.meanReturn - 0.8064516129032258) < 1e-12);
+  const inferredSuggestion = calculateSuggestedWager({
+    enabled: true,
+    balance: 1000,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: inferredReturnHands,
+    action: "STAND"
+  });
+  assert.ok(inferredSuggestion.amount > 10,
+    "recorded ordinary-hand outcomes and wager exposure affect Auto's practice amount");
+  const unsupportedInferredReturns = summarizeWagerOutcomes([
+    {result: "win", wagerAmount: 10, playerAction: "DOUBLE", cards: ["10", "7"]},
+    {result: "win", wagerAmount: 10, playerAction: "SPLIT", cards: ["8", "8"]},
+    {result: "win", wagerAmount: 10, playerAction: "STAND", cards: ["A", "K"]},
+    {result: "win", wagerAmount: 10, cards: ["10", "7"]}
+  ]);
+  assert.equal(unsupportedInferredReturns.returnSampleSize, 0,
+    "ambiguous double/split/natural or unrecorded actions need exact net results");
+
+  assert.deepEqual(fictionalWagerOutcomeHistory([
     {result: "win", wagerAmount: 5},
     {result: "loss", wagerAmount: 5, fictionalCredits: true},
     {result: "push", wagerAmount: 5, fictionalCredits: true}
   ]).map((hand) => hand.result), ["loss", "push"]);
-  assert.throws(() => fictionalProgressionHistory(null), /unexpected format/);
-  assert.equal(replayProgression("flat", [{result: "loss"}]).endingBalance, 99);
+  assert.throws(() => fictionalWagerOutcomeHistory(null), /unexpected format/);
+  assert.throws(() => summarizeWagerOutcomes(null), /unexpected format/);
 
   assert.equal(calculateSuggestedWager({
     enabled: true,
@@ -1433,7 +2884,100 @@ test("fictional progression sizing uses bankroll, recent practice outcomes, expo
     sessionNet: 0,
     recentHands: [],
     action: "INVALID"
-  }), /unexpected format/);
+  }), /supported blackjack action/);
+});
+
+test("wager suggestion is prominent and displays a history-based estimate", () => {
+  assert.match(html, /class="advisor-wager-card" aria-labelledby="advisorWagerTitle"/);
+  assert.match(html, /id="suggestedWagerAmount" aria-live="polite"/);
+  assert.match(html, /id="wagerHistorySummary" aria-live="polite"/);
+  assert.match(html, /id="outcomePatternProbability" aria-live="polite"/);
+  assert.match(html, /id="actionOutcomeSummary" aria-live="polite"/);
+  assert.match(mainScript, /not conditioned on the current cards/);
+  assert.match(html, /round-level result, not separate split-hand outcomes/);
+  assert.match(html, /Previous 20 results/);
+  assert.match(html, /Smoothed W\/P\/L/);
+  assert.match(html, /Auto · adjust from history \(fictional only\)/);
+  assert.match(mainScript, /inferredReturnSampleSize/);
+  assert.match(mainScript, /effective sample/);
+  assert.match(html, /History-based W\/L sizing assumes even-money returns/);
+  assert.match(mainScript, /Auto uses an experimental recent-20 W\/P\/L pattern/);
+  assert.match(mainScript, /amount is chosen before cards/);
+  assert.match(html, /\.advisor-wager-card\s*\{[^}]*box-shadow/s);
+  assert.match(mainScript, /renderOutcomePatternEstimate\(recentHands, outcomes\)/);
+  assert.match(mainScript, /Current-hand model \(W\/P\/L = win\/push\/loss/);
+  assert.match(mainScript, /handOutcomeQuarterKellyFraction/);
+  assert.match(mainScript, /Auto uses conservative empirical quarter-Kelly sizing/);
+  assert.match(mainScript, /negative-edge-no-wager/);
+});
+
+test("recent-20 outcome model estimates streak contexts with shrinkage and chronological validation", () => {
+  const history = (results) => results.map((item, index) => ({
+    time: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+    result: typeof item === "string" ? item : item.result,
+    fictionalCredits: true
+  })).reverse();
+  const lossStreak = calculateOutcomePatternModel(history([
+    ...Array(20).fill("loss"),
+    "win",
+    ...Array(20).fill("loss")
+  ]));
+  assert.equal(lossStreak.sampleSize, 41);
+  assert.equal(lossStreak.currentCondition, "allLosses");
+  assert.deepEqual(lossStreak.currentWindowCounts, {wins: 0, losses: 20, pushes: 0});
+  const allLosses = lossStreak.contexts.find((context) => context.key === "allLosses");
+  assert.equal(allLosses.samples, 1);
+  assert.equal(allLosses.wins, 1);
+  assert.ok(lossStreak.currentWinProbability > lossStreak.baselineProbability,
+    "the small conditional observation moves the estimate only slightly from the baseline");
+  assert.ok(lossStreak.currentWinProbability < 0.12, "one matching observation is strongly shrunk");
+  assert.equal(lossStreak.walkForward.samples, 21);
+
+  const winStreak = calculateOutcomePatternModel(history([
+    ...Array(20).fill("win"),
+    "loss",
+    ...Array(20).fill("win")
+  ]));
+  assert.equal(winStreak.currentCondition, "allWins");
+  assert.ok(winStreak.currentWinProbability < winStreak.baselineProbability,
+    "one loss after a 20-win context is shrunk toward the overall baseline");
+
+  const shortHistory = calculateOutcomePatternModel(history([
+    ...Array(19).fill("win"),
+    "push",
+    {result: null}
+  ]));
+  assert.equal(shortHistory.sampleSize, 20);
+  assert.equal(shortHistory.currentCondition, "mostlyWins");
+  assert.deepEqual(shortHistory.currentWindowCounts, {wins: 19, losses: 0, pushes: 1});
+  assert.deepEqual(
+    Object.keys(shortHistory.currentOutcomeProbabilities).sort(),
+    ["loss", "push", "win"]
+  );
+  assert.ok(Math.abs(Object.values(shortHistory.currentOutcomeProbabilities)
+    .reduce((sum, probability) => sum + probability, 0) - 1) < 1e-12);
+  assert.throws(() => calculateOutcomePatternModel(null), /unexpected format/);
+  assert.throws(() => calculateOutcomePatternModel([], 1), /between 2 and 100/);
+  assert.throws(() => calculateOutcomePatternModel([], 20, 0), /greater than zero/);
+});
+
+test("recent-20 model can learn a synthetic streak effect but measures it against a walk-forward baseline", () => {
+  const results = [];
+  for (let cycle = 0; cycle < 6; cycle++) {
+    results.push(...Array(30).fill("loss"), ...Array(30).fill("win"));
+  }
+  const hands = results.map((result, index) => ({
+    time: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+    result
+  })).reverse();
+  const model = calculateOutcomePatternModel(hands);
+  assert.equal(model.sampleSize, 100, "the estimator uses a bounded recent sample");
+  assert.equal(model.walkForward.samples, 80);
+  assert.ok(model.walkForward.modelBrier < model.walkForward.baselineBrier,
+    "streak context improves forecasts on data that actually contains a streak effect");
+  assert.ok(model.walkForward.validated,
+    "Auto requires a positive approximate 95% lower bound on out-of-sample Brier improvement");
+  assert.ok(model.walkForward.improvementLowerBound > 0);
 });
 
 test("hand outcome balance changes use wager defaults, exact net overrides, and never go negative", () => {
@@ -1747,6 +3291,7 @@ test("hand-result form saves advisor-entered player cards and preserves dealer c
       }
     }
   };
+  const sharedHands = [];
   const saveHandResult = new Function(
     "byId",
     "parseRank",
@@ -1762,6 +3307,7 @@ test("hand-result form saves advisor-entered player cards and preserves dealer c
     "decide",
     "renderSuggestedWager",
     "suggestedWagerAction",
+    "shareCompletedHand",
     "let activeConsultationId = 'consult-1';\n" +
       mainScript.slice(saveResultStart, clearHistoryStart) + "return saveHandResult;"
   )(
@@ -1778,7 +3324,8 @@ test("hand-result form saves advisor-entered player cards and preserves dealer c
     "rainbet-original-blackjack-history-v1",
     () => {},
     () => {},
-    "STAND"
+    "STAND",
+    (entry) => sharedHands.push(entry.consultationId)
   );
 
   elements.handResult.value = "";
@@ -1792,6 +3339,7 @@ test("hand-result form saves advisor-entered player cards and preserves dealer c
   assert.deepEqual(entries[0].finalDealerCards, ["2", "10"]);
   assert.equal(entries[0].wagerAmount, 10);
   assert.equal(entries[0].netResult, -12.5);
+  assert.equal(entries[0].netResultExact, true);
   assert.equal(entries[0].fictionalCredits, true);
   assert.equal(JSON.parse(localStorage.balanceValue).amount, 87.5);
   assert.equal(JSON.parse(localStorage.balanceValue).currency, "FAKE");
@@ -1800,6 +3348,7 @@ test("hand-result form saves advisor-entered player cards and preserves dealer c
   assert.equal(elements.handResultEntry.hidden, true);
   assert.match(elements.handResultMessage.textContent, /cards already entered in the advisor/);
   assert.equal(classifyHistoryDecision(entries[0]), "different");
+  assert.deepEqual(sharedHands, ["consult-1"]);
 });
 
 test("hand-result form saves entered player cards and leaves unknown dealer cards blank", () => {
@@ -1842,6 +3391,7 @@ test("hand-result form saves entered player cards and leaves unknown dealer card
       }
     }
   };
+  const sharedHands = [];
   const saveHandResult = new Function(
     "byId",
     "parseRank",
@@ -1857,6 +3407,7 @@ test("hand-result form saves entered player cards and leaves unknown dealer card
     "decide",
     "renderSuggestedWager",
     "suggestedWagerAction",
+    "shareCompletedHand",
     "let activeConsultationId = 'consult-2';\n" +
       mainScript.slice(saveResultStart, clearHistoryStart) + "return saveHandResult;"
   )(
@@ -1873,7 +3424,8 @@ test("hand-result form saves entered player cards and leaves unknown dealer card
     "rainbet-original-blackjack-history-v1",
     () => {},
     () => {},
-    "STAND"
+    "STAND",
+    (entry) => sharedHands.push(entry.consultationId)
   );
 
   saveHandResult();
@@ -1881,8 +3433,87 @@ test("hand-result form saves entered player cards and leaves unknown dealer card
   assert.deepEqual(entries[0].finalPlayerCards, ["10", "7"]);
   assert.equal(entries[0].finalDealerCards, null);
   assert.equal(entries[0].netResult, 5);
+  assert.equal(entries[0].netResultExact, false);
   assert.equal(JSON.parse(localStorage.balanceValue).amount, 105);
   assert.equal(elements.handResultEntry.hidden, true);
+  assert.deepEqual(sharedHands, ["consult-2"]);
+});
+
+test("hand-result form saves an outcome without inventing an unknown wager or net result", () => {
+  const elements = {
+    handResult: {value: "win"},
+    playerCards: {value: "J, J"},
+    hitCards: {value: ""},
+    splitHandCards: {value: ""},
+    handWager: {value: ""},
+    handNetResult: {value: ""},
+    playerAction: {value: "STAND"},
+    handResultMessage: {textContent: ""},
+    handResultEntry: {hidden: false}
+  };
+  const entries = [{
+    consultationId: "consult-no-stake",
+    cards: ["J", "J"],
+    dealer: "6",
+    recommendedAction: "STAND",
+    result: null,
+    finalPlayerCards: null,
+    finalDealerCards: ["6", "2", "7", "A", "K"]
+  }];
+  const localStorage = {
+    getItem(key) {
+      assert.equal(key, "rainbet-advisor-manual-balance-v1");
+      return null;
+    },
+    setItem(key, value) {
+      assert.equal(key, "rainbet-original-blackjack-history-v1");
+      entries.splice(0, entries.length, ...JSON.parse(value));
+    }
+  };
+  const saveHandResult = new Function(
+    "byId",
+    "parseRank",
+    "currentFinalPlayerCardRanks",
+    "calculateHandBalanceChange",
+    "updateManualBalanceForHand",
+    "formatManualBalance",
+    "readHistory",
+    "writeHistory",
+    "localStorage",
+    "refreshHistory",
+    "historyKey",
+    "decide",
+    "renderSuggestedWager",
+    "suggestedWagerAction",
+    "shareCompletedHand",
+    "let activeConsultationId = 'consult-no-stake';\n" +
+      mainScript.slice(saveResultStart, clearHistoryStart) + "return saveHandResult;"
+  )(
+    (id) => elements[id],
+    parseRank,
+    createFinalPlayerCardReader(elements),
+    calculateHandBalanceChange,
+    createManualBalanceUpdater(elements, localStorage),
+    formatManualBalance,
+    () => entries,
+    (newEntries) => localStorage.setItem("rainbet-original-blackjack-history-v1", JSON.stringify(newEntries)),
+    localStorage,
+    () => {},
+    "rainbet-original-blackjack-history-v1",
+    () => {},
+    () => {},
+    "STAND",
+    () => {}
+  );
+
+  saveHandResult();
+  assert.equal(entries[0].result, "win");
+  assert.equal(entries[0].wagerAmount, null);
+  assert.equal(entries[0].netResult, null);
+  assert.equal(entries[0].netResultExact, false);
+  assert.equal(entries[0].fictionalCredits, true);
+  assert.equal(elements.handResultEntry.hidden, true);
+  assert.match(elements.handResultMessage.textContent, /No wager or exact net result was entered/);
 });
 
 test("clearing signed-in history removes local data and deletes the cloud copy", async () => {
@@ -2173,6 +3804,209 @@ async function listenForTest(testContext, server) {
   return "http://127.0.0.1:" + server.address().port;
 }
 
+test("shared-training endpoint requires same-origin anonymous auth and accepts only when configured", async (testContext) => {
+  const submissions = [];
+  const server = createGeminiServer({
+    apiKey: "",
+    trainingStore: {
+      async submit(token, value) {
+        submissions.push({token, value});
+        return {duplicate: false};
+      }
+    }
+  });
+  const origin = await listenForTest(testContext, server);
+  const request = (headers = {}, body = validTrainingContribution()) => fetch(origin + "/api/training-contribution", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: origin, ...headers},
+    body: JSON.stringify(body)
+  });
+  const advice = () => fetch(origin + "/api/advice", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: origin},
+    body: JSON.stringify({
+      cards: ["10", "6"],
+      dealer: "10",
+      options: {doubleAllowed: true, splitAllowed: true, dasRule: "unknown", afterSplit: false}
+    })
+  }).then((response) => response.json());
+
+  const adviceBeforeContribution = await advice();
+  const missingAuth = await request();
+  assert.equal(missingAuth.status, 401);
+  const accepted = await request({Authorization: "Bearer anonymous-token"});
+  assert.equal(accepted.status, 200);
+  assert.deepEqual(await accepted.json(), {accepted: true, duplicate: false});
+  assert.equal(submissions.length, 1);
+  assert.equal(submissions[0].token, "anonymous-token");
+  assert.equal(submissions[0].value.wagerAmount, undefined);
+  assert.equal(submissions[0].value.netResult, undefined);
+  assert.deepEqual(await advice(), adviceBeforeContribution, "shared outcome data is isolated from live recommendations");
+
+  const wrongOrigin = await fetch(origin + "/api/training-contribution", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: "https://other.example", Authorization: "Bearer anonymous-token"},
+    body: JSON.stringify(validTrainingContribution())
+  });
+  assert.equal(wrongOrigin.status, 403);
+
+  const disabledServer = createGeminiServer({apiKey: "", firebaseServiceAccountJson: ""});
+  const disabledOrigin = await listenForTest(testContext, disabledServer);
+  const disabled = await fetch(disabledOrigin + "/api/training-contribution", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: disabledOrigin, Authorization: "Bearer anonymous-token"},
+    body: JSON.stringify(validTrainingContribution())
+  });
+  assert.equal(disabled.status, 503);
+  assert.match((await disabled.json()).error, /remains only in local history/);
+});
+
+test("site stats service verifies the owner, returns aggregate Plausible metrics, and caches by range", async () => {
+  const claims = new Map([
+    ["owner-session-token-000000000000", {
+      email: "OWNER@example.com",
+      email_verified: true,
+      firebase: {sign_in_provider: "google.com"}
+    }],
+    ["other-session-token-000000000000", {
+      email: "other@example.com",
+      email_verified: true,
+      firebase: {sign_in_provider: "google.com"}
+    }],
+    ["anonymous-session-token-0000000000", {
+      email: "owner@example.com",
+      email_verified: true,
+      firebase: {sign_in_provider: "anonymous"}
+    }],
+    ["unverified-session-token-00000000", {
+      email: "owner@example.com",
+      email_verified: false,
+      firebase: {sign_in_provider: "google.com"}
+    }]
+  ]);
+  const requests = [];
+  const service = createSiteStatsService({
+    auth: {
+      async verifyIdToken(token, checkRevoked) {
+        assert.equal(checkRevoked, true);
+        if (token === "expired-session-token-000000000") throw new Error("expired");
+        return claims.get(token);
+      }
+    },
+    fetchImpl: async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push({url, options, body});
+      return {
+        ok: true,
+        async json() {
+          return body.dimensions
+            ? {results: [
+              {dimensions: ["/"], metrics: [40, 55]},
+              {dimensions: ["/#history-title"], metrics: [15, 20]}
+            ]}
+            : {results: [{metrics: [42, 58, 91, 72.5, 31.4]}]};
+        }
+      };
+    },
+    apiKey: "plausible-secret",
+    siteId: "advisor.example",
+    adminEmails: ["Owner@example.com", "not-an-email"]
+  });
+
+  await assert.rejects(service.getStats("owner-session-token-000000000000", "1y"), (error) =>
+    error instanceof SiteStatsError && error.status === 400);
+  await assert.rejects(service.getStats("expired-session-token-000000000", "30d"), (error) =>
+    error instanceof SiteStatsError && error.status === 401);
+  await assert.rejects(service.getStats("other-session-token-000000000000", "30d"), (error) =>
+    error instanceof SiteStatsError && error.status === 403);
+  await assert.rejects(service.getStats("anonymous-session-token-0000000000", "30d"), (error) =>
+    error instanceof SiteStatsError && error.status === 403);
+  await assert.rejects(service.getStats("unverified-session-token-00000000", "30d"), (error) =>
+    error instanceof SiteStatsError && error.status === 403);
+
+  const stats = await service.getStats("owner-session-token-000000000000", "30d");
+  assert.deepEqual(stats, {
+    dateRange: "30d",
+    visitors: 42,
+    visits: 58,
+    pageviews: 91,
+    visitDurationSeconds: 72.5,
+    bounceRate: 31.4,
+    topPages: [
+      {path: "/", visitors: 40, pageviews: 55},
+      {path: "/#history-title", visitors: 15, pageviews: 20}
+    ]
+  });
+  assert.equal(Object.hasOwn(stats, "email"), false);
+  assert.equal(requests.length, 2);
+  assert.ok(requests.every(({url, options, body}) =>
+    url === "https://plausible.io/api/v2/query" &&
+    options.headers.Authorization === "Bearer plausible-secret" &&
+    body.site_id === "advisor.example" &&
+    body.date_range === "30d"));
+  assert.deepEqual(await service.getStats("owner-session-token-000000000000", "30d"), stats);
+  assert.equal(requests.length, 2, "cached reads should not call Plausible again");
+
+  assert.throws(() => createSiteStatsService({
+    auth: {verifyIdToken() {}},
+    fetchImpl: async () => {},
+    apiKey: "",
+    siteId: "advisor.example",
+    adminEmails: ["owner@example.com"]
+  }), /require Firebase Admin Auth/);
+});
+
+test("site stats endpoint requires same-origin requests and configured owner authentication", async (testContext) => {
+  assert.throws(() => createGeminiServer({
+    apiKey: "",
+    plausibleStatsApiKey: "plausible-secret",
+    plausibleSiteId: "advisor.example",
+    siteStatsAdminEmails: "owner@example.com",
+    firebaseServiceAccountJson: ""
+  }), /require FIREBASE_SERVICE_ACCOUNT_JSON/);
+
+  const calls = [];
+  const server = createGeminiServer({
+    apiKey: "",
+    siteStatsService: {
+      async getStats(token, range) {
+        calls.push({token, range});
+        if (token !== "owner-session-token-000000000") {
+          throw new SiteStatsError(403, "This account is not authorized.");
+        }
+        return {dateRange: range, visitors: 10};
+      }
+    }
+  });
+  const origin = await listenForTest(testContext, server);
+  const request = (headers = {}, body = {dateRange: "30d"}) => fetch(origin + "/api/site-stats", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: origin, ...headers},
+    body: JSON.stringify(body)
+  });
+
+  assert.equal((await request()).status, 401);
+  const wrongOrigin = await request({
+    Origin: "https://other.example",
+    Authorization: "Bearer owner-session-token-000000000"
+  });
+  assert.equal(wrongOrigin.status, 403);
+  const authorized = await request({Authorization: "Bearer owner-session-token-000000000"});
+  assert.equal(authorized.status, 200);
+  assert.deepEqual(await authorized.json(), {dateRange: "30d", visitors: 10});
+  assert.deepEqual(calls, [{token: "owner-session-token-000000000", range: "30d"}]);
+  assert.equal((await fetch(origin + "/api/site-stats", {headers: {Origin: origin}})).status, 405);
+
+  const disabledServer = createGeminiServer({apiKey: "", siteStatsService: null});
+  const disabledOrigin = await listenForTest(testContext, disabledServer);
+  const disabled = await fetch(disabledOrigin + "/api/site-stats", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: disabledOrigin},
+    body: JSON.stringify({dateRange: "30d"})
+  });
+  assert.equal(disabled.status, 503);
+});
+
 test("private strategy endpoint validates same-origin requests and does not serve its implementation", async (testContext) => {
   const server = createGeminiServer({apiKey: ""});
   const origin = await listenForTest(testContext, server);
@@ -2206,6 +4040,21 @@ test("private strategy endpoint validates same-origin requests and does not serv
   assert.equal(evPayload.action, "DOUBLE");
   assert.equal(evPayload.analysis.bestAction, "DOUBLE");
   assert.ok(evPayload.analysis.values.double > evPayload.analysis.values.hit);
+
+  const splitAceResponse = await fetch(origin + "/api/advice", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: origin},
+    body: JSON.stringify({
+      cards: ["A", "6"],
+      dealer: "10",
+      options: {doubleAllowed: true, splitAllowed: false, dasRule: "allowed", afterSplit: true}
+    })
+  });
+  const splitAcePayload = await splitAceResponse.json();
+  assert.equal(splitAceResponse.status, 200);
+  assert.equal(splitAcePayload.action, "STAND");
+  assert.equal(splitAcePayload.alternativeAction, null);
+  assert.match(splitAcePayload.explanation, /split-ace rule.*stands automatically/i);
 
   const privateSource = await fetch(origin + "/rainbet-strategy.cjs");
   assert.equal(privateSource.status, 404);
