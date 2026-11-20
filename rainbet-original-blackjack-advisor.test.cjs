@@ -531,8 +531,8 @@ test("interface sounds stay lazy, soft, low-pitched, and rate-limited", () => {
   assert.equal(contextCount, 1);
   assert.ok(soundEvents.some(([name, value]) => name === "frequency" && value === 329.63));
   assert.ok(soundEvents.some(([name, time]) => name === "start" && time === 2));
-  assert.ok(soundEvents.some(([name, time]) => name === "stop" && Math.abs(time - 2.11) < 1e-9));
-  assert.ok(soundEvents.some(([name, value]) => name === "gainRamp" && value === 0.008));
+  assert.ok(soundEvents.some(([name, time]) => name === "stop" && Math.abs(time - 2.12) < 1e-9));
+  assert.ok(soundEvents.some(([name, value]) => name === "gainRamp" && value === 0.009));
   const firstSoundEventCount = soundEvents.length;
   enabledSound("correct");
   assert.equal(soundEvents.length, firstSoundEventCount);
@@ -542,14 +542,14 @@ test("interface sounds stay lazy, soft, low-pitched, and rate-limited", () => {
   assert.deepEqual(statuses, []);
 });
 
-test("vibration feedback uses one brief pulse, stays off when disabled, and reports unsupported devices", () => {
+test("vibration feedback stays brief and patterned, stays off when disabled, and reports unsupported devices", () => {
   const requests = [];
   const statuses = [];
   const supportedWindow = {navigator: {vibrate(pattern) { requests.push(pattern); return true; }}};
   createVibrationPlayer(false, supportedWindow, (message, isError) => statuses.push({message, isError}))();
   assert.deepEqual(requests, []);
   createVibrationPlayer(true, supportedWindow, (message, isError) => statuses.push({message, isError}))();
-  assert.deepEqual(requests, [12]);
+  assert.deepEqual(requests, [8]);
   assert.deepEqual(statuses, []);
   const unsupportedPlayer = createVibrationPlayer(true, {navigator: {}}, (message, isError) => statuses.push({message, isError}));
   unsupportedPlayer();
@@ -2894,6 +2894,11 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
 });
 
 test("wager suggestion is prominent and displays a history-based estimate", () => {
+  assert.match(html, /@keyframes advisor-action-pop/);
+  assert.match(html, /@keyframes advisor-selection-pulse/);
+  assert.match(mainScript, /popRecommendedAction/);
+  assert.match(mainScript, /tones\.forEach/);
+  assert.match(mainScript, /kind === "correct" \? \[10, 28, 12\]/);
   assert.match(html, /class="advisor-pattern-details"/);
   assert.match(html, /View recent-20 breakdown/);
   assert.match(html, /id="premiumQuickstart"/);

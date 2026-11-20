@@ -41,6 +41,16 @@
       55% { box-shadow: inset 0 0 0 2px rgba(190, 245, 153, .5), inset 0 0 42px rgba(2, 20, 8, .38), 0 0 34px rgba(142, 235, 123, .38); }
       100% { box-shadow: inset 0 0 0 2px rgba(190, 245, 153, .3), inset 0 0 42px rgba(2, 20, 8, .38), 0 0 26px rgba(142, 235, 123, .22); }
     }
+    @keyframes advisor-action-pop {
+      0% { opacity: .42; transform: translateY(5px) scale(.96); filter: brightness(.82); }
+      70% { opacity: 1; transform: translateY(-1px) scale(1.035); filter: brightness(1.12); }
+      100% { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1); }
+    }
+    @keyframes advisor-selection-pulse {
+      0% { box-shadow: inset 0 0 0 1px rgba(190, 245, 153, .08), 0 0 0 rgba(142, 235, 123, 0); }
+      55% { box-shadow: inset 0 0 0 2px rgba(190, 245, 153, .32), 0 0 18px rgba(142, 235, 123, .16); }
+      100% { box-shadow: inset 0 0 0 1px rgba(190, 245, 153, .12), 0 0 14px rgba(142, 235, 123, .08); }
+    }
     @keyframes move-followup-enter {
       from { opacity: 0; transform: translateY(12px) scale(.985); }
       to { opacity: 1; transform: translateY(0) scale(1); }
@@ -76,6 +86,12 @@
       [role="button"]:focus {
         outline: none;
         box-shadow: none;
+      }
+      button:active:not(:disabled),
+      summary:active,
+      [role="button"]:active {
+        transform: scale(.975);
+        filter: brightness(.96);
       }
       button:focus-visible {
         outline: 2px solid var(--accent);
@@ -447,7 +463,7 @@
     .advisor-split-note { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .72rem; text-align: center; }
     .advisor-player-zones.split-mode #advisorSplitZone { grid-column: 1 / -1; }
     .advisor-card-zone { min-width: 0; padding: 12px 8px 4px; border: 1px solid rgba(220, 237, 211, .13); border-radius: 13px; background: rgba(5, 25, 12, .16); transition: opacity .3s ease, border-color .3s ease, background .3s ease, filter .3s ease; }
-    .advisor-card-zone.selected-target { border-color: rgba(190, 245, 153, .85); background: rgba(26, 73, 39, .36); box-shadow: inset 0 0 0 1px rgba(190, 245, 153, .12), 0 0 16px rgba(142, 235, 123, .12); }
+    .advisor-card-zone.selected-target { border-color: rgba(190, 245, 153, .85); background: rgba(26, 73, 39, .36); box-shadow: inset 0 0 0 1px rgba(190, 245, 153, .12), 0 0 16px rgba(142, 235, 123, .12); animation: advisor-selection-pulse 520ms ease-out; }
     .advisor-card-zone.locked { opacity: .58; filter: saturate(.55); }
     .advisor-card-zone.unlocked { border-color: rgba(190, 245, 153, .7); background: rgba(26, 73, 39, .3); animation: advisor-split-unlock 620ms cubic-bezier(.2, .8, .2, 1); }
     .advisor-card-zone-title { min-height: 32px; margin: 0 0 8px; color: rgba(229, 242, 222, .82); font-size: .66rem; font-weight: 800; letter-spacing: .07em; text-align: center; text-transform: uppercase; }
@@ -500,6 +516,7 @@
     }
     .advisor-live-label { margin: 0 0 2px; color: var(--muted); font-size: .68rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
     .advisor-live-action { margin: 0; color: var(--accent); font-size: 1.3rem; font-weight: 900; letter-spacing: .04em; }
+    .advisor-live-action.action-pop { animation: advisor-action-pop 330ms cubic-bezier(.2, .8, .2, 1) both; }
     .advisor-live-hand { margin: 0 0 2px; color: #e6f3e9; font-size: .85rem; font-weight: 800; }
     .advisor-status { min-height: 1.4em; margin: 3px 0 0; font-size: .78rem; }
     .advisor-status.error { color: #ffbf9b; }
@@ -2512,6 +2529,22 @@ node .\rainbet-gemini-server.cjs</code></pre>
       byId("showStickyAdvisor").addEventListener("click", () => {
         const liveAdvice = document.querySelector(".advisor-live-advice");
         if (liveAdvice) liveAdvice.scrollIntoView({behavior: "smooth", block: "center"});
+      });
+      let actionPopTimer = null;
+      const popRecommendedAction = () => {
+        const actionElement = byId("action");
+        if (!actionElement) return;
+        actionElement.classList.remove("action-pop");
+        void actionElement.offsetWidth;
+        actionElement.classList.add("action-pop");
+        if (actionPopTimer) window.clearTimeout(actionPopTimer);
+        actionPopTimer = window.setTimeout(() => actionElement.classList.remove("action-pop"), 380);
+      };
+      const actionObserver = new MutationObserver(popRecommendedAction);
+      if (byId("action")) actionObserver.observe(byId("action"), {
+        childList: true,
+        characterData: true,
+        subtree: true
       });
       const stickyRecommendationObserver = new MutationObserver(syncStickyAdvisorRecommendation);
       ["action", "handSummary"].forEach((id) => {
@@ -5855,19 +5888,26 @@ node .\rainbet-gemini-server.cjs</code></pre>
             const now = context.currentTime;
             if (now - lastInterfaceSoundAt < 0.12) return;
             lastInterfaceSoundAt = now;
-            const frequency = kind === "correct" ? 329.63 : kind === "remove" ? 220 : 261.63;
-            const oscillator = context.createOscillator();
-            const gain = context.createGain();
-            oscillator.type = "sine";
-            oscillator.frequency.setValueAtTime(frequency, now);
-            oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.03, now + 0.075);
-            gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.exponentialRampToValueAtTime(0.008, now + 0.02);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
-            oscillator.connect(gain);
-            gain.connect(context.destination);
-            oscillator.start(now);
-            oscillator.stop(now + 0.11);
+            const tones = kind === "correct"
+              ? [329.63, 392, 493.88]
+              : kind === "remove"
+                ? [196]
+                : [261.63, 329.63];
+            tones.forEach((frequency, index) => {
+              const start = now + index * 0.055;
+              const oscillator = context.createOscillator();
+              const gain = context.createGain();
+              oscillator.type = kind === "remove" ? "triangle" : "sine";
+              oscillator.frequency.setValueAtTime(frequency, start);
+              oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.018, start + 0.08);
+              gain.gain.setValueAtTime(0.0001, start);
+              gain.gain.exponentialRampToValueAtTime(kind === "correct" ? 0.009 : 0.006, start + 0.018);
+              gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.105);
+              oscillator.connect(gain);
+              gain.connect(context.destination);
+              oscillator.start(start);
+              oscillator.stop(start + 0.12);
+            });
           };
           if (context.state === "running") {
             playTone();
@@ -5883,7 +5923,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         }
       }
 
-      function playVibrationFeedback() {
+      function playVibrationFeedback(kind = "selection") {
         if (!vibrationFeedbackEnabled || vibrationFeedbackUnavailable) return;
         const vibrate = window.navigator && window.navigator.vibrate;
         if (typeof vibrate !== "function") {
@@ -5892,7 +5932,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           return;
         }
         try {
-          if (vibrate.call(window.navigator, 12) === false) {
+          const pattern = kind === "correct" ? [10, 28, 12] : kind === "remove" ? 6 : 8;
+          if (vibrate.call(window.navigator, pattern) === false) {
             vibrationFeedbackUnavailable = true;
             showVibrationFeedbackStatus("The device did not accept vibration feedback.", true);
           }
@@ -5904,7 +5945,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
 
       function playInterfaceFeedback(kind) {
         playInterfaceSound(kind);
-        playVibrationFeedback();
+        playVibrationFeedback(kind);
       }
 
       function initializeAppearanceSettings() {
