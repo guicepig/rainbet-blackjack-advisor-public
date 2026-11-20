@@ -2182,6 +2182,12 @@ node .\rainbet-gemini-server.cjs</code></pre>
               <button type="button" class="secondary" id="googleHistorySync" hidden disabled>Sync history</button>
               <button type="button" class="secondary" id="googleHistorySignOut" hidden>Sign out</button>
             </div>
+            <h4>Monthly membership</h4>
+            <p id="membershipStatus" class="fine" aria-live="polite">Sign in with Google to view or manage membership.</p>
+            <div class="settings-controls">
+              <button type="button" id="upgradeMembership" hidden disabled>Upgrade for $10/month</button>
+              <button type="button" class="secondary" id="manageMembership" hidden disabled>Manage subscription</button>
+            </div>
             <p id="googleHistoryStatus" class="fine" aria-live="polite">Checking cloud-sync setup…</p>
             <details>
               <summary>One-time Firebase setup</summary>
@@ -2389,6 +2395,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
       let cloudHistoryWriteChain = Promise.resolve();
       let cloudHistoryWriteVersion = 0;
       let cloudHistorySyncedUid = null;
+      let membershipTier = "free";
+      let membershipLoading = false;
       let cloudProfileName = "";
       let cloudProfileSaving = false;
       let cloudProfileLoading = false;
@@ -6033,6 +6041,77 @@ node .\rainbet-gemini-server.cjs</code></pre>
         status.classList.toggle("error", Boolean(isError));
       }
 
+      async function refreshMembershipStatus() {
+        if (!cloudHistoryUser || !cloudHistoryClient) {
+          membershipTier = "free";
+          byId("membershipStatus").textContent = "Sign in with Google to view or manage membership.";
+          byId("upgradeMembership").hidden = true;
+          byId("manageMembership").hidden = true;
+          return;
+        }
+        membershipLoading = true;
+        byId("membershipStatus").textContent = "Checking your membership…";
+        byId("upgradeMembership").disabled = true;
+        byId("manageMembership").disabled = true;
+        try {
+          const idToken = await cloudHistoryClient.getBillingIdToken();
+          const response = await fetch("/api/billing/status", {
+            method: "POST",
+            headers: {Authorization: "Bearer " + idToken}
+          });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || "Could not check membership.");
+          membershipTier = payload.tier;
+          byId("membershipStatus").textContent = membershipTier === "paid"
+            ? "Paid membership active."
+            : "Free membership.";
+        } catch (error) {
+          byId("membershipStatus").textContent = "Membership unavailable: " + error.message;
+        } finally {
+          membershipLoading = false;
+          byId("upgradeMembership").hidden = membershipTier === "paid";
+          byId("upgradeMembership").disabled = false;
+          byId("manageMembership").hidden = membershipTier !== "paid";
+          byId("manageMembership").disabled = false;
+        }
+      }
+
+      async function startMembershipCheckout() {
+        if (!cloudHistoryClient || !cloudHistoryUser || membershipLoading) return;
+        byId("membershipStatus").textContent = "Opening secure Stripe Checkout…";
+        try {
+          const idToken = await cloudHistoryClient.getBillingIdToken();
+          const response = await fetch("/api/billing/checkout", {
+            method: "POST",
+            headers: {Authorization: "Bearer " + idToken, "Content-Type": "application/json"},
+            body: "{}"
+          });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || "Could not start checkout.");
+          window.location.assign(payload.url);
+        } catch (error) {
+          byId("membershipStatus").textContent = "Could not start checkout: " + error.message;
+        }
+      }
+
+      async function openMembershipPortal() {
+        if (!cloudHistoryClient || !cloudHistoryUser || membershipLoading) return;
+        byId("membershipStatus").textContent = "Opening Stripe subscription management…";
+        try {
+          const idToken = await cloudHistoryClient.getBillingIdToken();
+          const response = await fetch("/api/billing/portal", {
+            method: "POST",
+            headers: {Authorization: "Bearer " + idToken, "Content-Type": "application/json"},
+            body: "{}"
+          });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || "Could not open the portal.");
+          window.location.assign(payload.url);
+        } catch (error) {
+          byId("membershipStatus").textContent = "Could not open subscription management: " + error.message;
+        }
+      }
+
       function updateCloudHistoryControls() {
         const signedIn = Boolean(cloudHistoryUser);
         const signInButtons = [byId("googleHistorySignIn"), byId("googleHistorySettingsSignIn")];
@@ -6151,6 +6230,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           siteStatsLoading = false;
           clearSiteStatsResults();
           updateCloudHistoryControls();
+          void refreshMembershipStatus();
           setProfileNameStatus("Sign in with Google to set a private username.", false);
           setCloudHistoryStatus("Signed out. Hand history remains saved in this browser.", false);
           return;
@@ -6161,6 +6241,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           clearSiteStatsResults();
         }
         updateCloudHistoryControls();
+        void refreshMembershipStatus();
         void loadPrivateProfile(cloudHistoryUser.uid);
         if (cloudHistorySyncedUid === cloudHistoryUser.uid && cloudHistoryReady) return;
         void syncCloudHistory();
@@ -6188,6 +6269,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("saveProfileName").addEventListener("click", () => void savePrivateProfileName(false));
         byId("clearProfileName").addEventListener("click", () => void savePrivateProfileName(true));
         byId("googleHistorySync").addEventListener("click", () => syncCloudHistory());
+        byId("upgradeMembership").addEventListener("click", () => void startMembershipCheckout());
+        byId("manageMembership").addEventListener("click", () => void openMembershipPortal());
         byId("googleHistorySignOut").addEventListener("click", async () => {
           if (!cloudHistoryClient) return;
           byId("googleHistorySignOut").disabled = true;
@@ -7104,7 +7187,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
               " pushes · " + pendingCount + " pending. Decision review: " + reviewCounts.matched + " matched advice, " + reviewCounts.conditional +
               " matched a conditional DAS alternative, " + reviewCounts.different + " differed, " +
               reviewCounts.unreviewed + " not reviewable." + amountSummary + netSummary +
-              " The recent-20 pattern estimate does not change strategy advice or wager sizing; eligible recorded wager returns may reduce Auto sizing.";
+              " The recent-20 pattern estimate does not change strategy advice or wager sizing; eligible recorded wager returns may reduce Auto sizing."
             : "No hands saved in this browser.";
           renderHistoryEntries(entries);
         } catch (error) {

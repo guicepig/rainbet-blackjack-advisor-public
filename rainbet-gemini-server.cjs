@@ -229,7 +229,6 @@ function readJsonBody(request) {
       request.resume();
       return;
     }
-
     const chunks = [];
     let size = 0;
     let rejected = false;
@@ -256,6 +255,63 @@ function readJsonBody(request) {
       if (!rejected) reject(new HttpError(400, "Could not read the request body."));
     });
   });
+}
+
+function readRawBody(request, limit = maxRequestBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    request.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > limit) {
+        reject(new HttpError(413, "The billing webhook body is too large."));
+        request.resume();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    request.on("end", () => resolve(Buffer.concat(chunks)));
+    request.on("error", () => reject(new HttpError(400, "Could not read the billing webhook body.")));
+  });
+}
+
+function configuredBillingStore(settings) {
+  const serviceAccountJson = settings.firebaseServiceAccountJson === undefined
+    ? process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+    : settings.firebaseServiceAccountJson;
+  const secretKey = settings.stripeSecretKey === undefined
+    ? process.env.STRIPE_SECRET_KEY
+    : settings.stripeSecretKey;
+  const webhookSecret = settings.stripeWebhookSecret === undefined
+    ? process.env.STRIPE_WEBHOOK_SECRET
+    : settings.stripeWebhookSecret;
+  const priceId = settings.stripeMonthlyPriceId === undefined
+    ? process.env.STRIPE_MONTHLY_PRICE_ID
+    : settings.stripeMonthlyPriceId;
+  if (!serviceAccountJson || !secretKey || !priceId) return null;
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(serviceAccountJson);
+  } catch {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON must contain valid service-account JSON.");
+  }
+  const {cert, getApps, initializeApp} = require("firebase-admin/app");
+  const {getAuth} = require("firebase-admin/auth");
+  const {getFirestore} = require("firebase-admin/firestore");
+  const appName = "rainbet-billing";
+  const app = getApps().find((item) => item.name === appName) ||
+    initializeApp({
+      credential: cert(serviceAccount),
+      projectId: serviceAccount.project_id
+    }, appName);
+  const Stripe = require("stripe");
+  return {
+    stripe: new Stripe(secretKey),
+    auth: getAuth(app),
+    firestore: getFirestore(app),
+    webhookSecret: typeof webhookSecret === "string" ? webhookSecret : "",
+    priceId
+  };
 }
 
 function extractAnswer(interaction) {
@@ -286,6 +342,9 @@ function createServer(options) {
   const apiKey = settings.apiKey === undefined ? process.env.GEMINI_API_KEY : settings.apiKey;
   const model = settings.model || process.env.GEMINI_MODEL || defaultModel;
   const fetchImpl = settings.fetchImpl || globalThis.fetch;
+  const billingStore = Object.prototype.hasOwnProperty.call(settings, "billingStore")
+    ? settings.billingStore
+    : configuredBillingStore(settings);
   const trainingStore = Object.prototype.hasOwnProperty.call(settings, "trainingStore")
     ? settings.trainingStore
     : configuredTrainingStore(settings);
@@ -313,6 +372,193 @@ function createServer(options) {
       pathname = requestUrl.pathname;
     } catch {
       sendJson(response, 400, {error: "Invalid request URL."});
+      return;
+    }
+
+    if (pathname === "/api/billing/webhook") {
+      if (request.method !== "POST") {
+        request.resume();
+        response.setHeader("Allow", "POST");
+        sendJson(response, 405, {error: "Use POST for Stripe billing webhooks."});
+        return;
+      }
+      if (!billingStore || !billingStore.webhookSecret) {
+        request.resume();
+        sendJson(response, 503, {error: "Stripe billing is not configured."});
+        return;
+      }
+      let rawBody;
+      try {
+        rawBody = await readRawBody(request, 65536);
+      } catch (error) {
+        sendJson(response, error instanceof HttpError ? error.status : 400,
+          {error: error instanceof HttpError ? error.message : "Could not read the Stripe webhook."});
+        return;
+      }
+      let event;
+      try {
+        event = billingStore.stripe.webhooks.constructEvent(
+          rawBody,
+          request.headers["stripe-signature"],
+          billingStore.webhookSecret
+        );
+      } catch (error) {
+        sendJson(response, 400, {error: "Invalid Stripe webhook signature."});
+        return;
+      }
+      try {
+        let uid = "";
+        let customerId = "";
+        let subscriptionId = "";
+        let subscriptionStatus = "";
+        if (event.type === "checkout.session.completed") {
+          uid = event.data.object.client_reference_id || event.data.object.metadata && event.data.object.metadata.firebaseUid || "";
+          customerId = typeof event.data.object.customer === "string" ? event.data.object.customer : "";
+          subscriptionId = typeof event.data.object.subscription === "string" ? event.data.object.subscription : "";
+          subscriptionStatus = "active";
+        } else if (event.type === "customer.subscription.updated" ||
+                   event.type === "customer.subscription.deleted") {
+          const subscription = event.data.object;
+          uid = subscription.metadata && subscription.metadata.firebaseUid || "";
+          customerId = typeof subscription.customer === "string" ? subscription.customer : "";
+          subscriptionId = subscription.id;
+          subscriptionStatus = subscription.status;
+        } else if (event.type === "invoice.payment_failed") {
+          const invoice = event.data.object;
+          const subscription = typeof invoice.subscription === "string" ? invoice.subscription : "";
+          uid = invoice.metadata && invoice.metadata.firebaseUid || "";
+          customerId = typeof invoice.customer === "string" ? invoice.customer : "";
+          subscriptionId = subscription;
+          subscriptionStatus = "past_due";
+        }
+        if (uid) {
+          await billingStore.firestore
+            .doc("users", uid, "membership", "current")
+            .set({
+              schemaVersion: 1,
+              tier: ["active", "trialing"].includes(subscriptionStatus) ? "paid" : "free",
+              subscriptionStatus,
+              subscriptionId,
+              customerId,
+              updatedAt: new Date().toISOString()
+            }, {merge: true});
+        }
+        sendJson(response, 200, {received: true});
+      } catch (error) {
+        process.stderr.write("Stripe webhook storage failed: " +
+          (error && typeof error.code === "string" ? error.code : "billing-error") + "\n");
+        sendJson(response, 500, {error: "Could not update subscription state."});
+      }
+      return;
+    }
+
+    if (pathname === "/api/billing/status" ||
+        pathname === "/api/billing/checkout" ||
+        pathname === "/api/billing/portal") {
+      if (request.method !== "POST") {
+        request.resume();
+        response.setHeader("Allow", "POST");
+        sendJson(response, 405, {error: "Use POST for billing requests."});
+        return;
+      }
+      if (!isAllowedAppOrigin(request)) {
+        request.resume();
+        sendJson(response, 403, {error: "Billing requests must come from this advisor site."});
+        return;
+      }
+      if (!billingStore) {
+        request.resume();
+        sendJson(response, 503, {error: "Paid subscriptions are not configured."});
+        return;
+      }
+      const authorization = request.headers.authorization;
+      const idToken = typeof authorization === "string" && authorization.startsWith("Bearer ")
+        ? authorization.slice(7).trim()
+        : "";
+      if (!idToken) {
+        request.resume();
+        sendJson(response, 401, {error: "Sign in with Google before managing a paid subscription."});
+        return;
+      }
+      let decoded;
+      try {
+        decoded = await billingStore.auth.verifyIdToken(idToken, true);
+      } catch {
+        request.resume();
+        sendJson(response, 401, {error: "The Google sign-in session is invalid or expired."});
+        return;
+      }
+      if (!decoded || typeof decoded.uid !== "string" || decoded.firebase.sign_in_provider === "anonymous") {
+        sendJson(response, 403, {error: "Use a Google account to manage membership."});
+        return;
+      }
+      const uid = decoded.uid;
+      const membershipRef = billingStore.firestore.doc("users", uid, "membership", "current");
+      try {
+        if (pathname === "/api/billing/status") {
+          const snapshot = await membershipRef.get();
+          const membership = snapshot.exists ? snapshot.data() : {};
+          const paid = membership.tier === "paid" &&
+            ["active", "trialing"].includes(membership.subscriptionStatus);
+          sendJson(response, 200, {
+            tier: paid ? "paid" : "free",
+            subscriptionStatus: membership.subscriptionStatus || "inactive"
+          });
+          return;
+        }
+        if (pathname === "/api/billing/checkout") {
+          const snapshot = await membershipRef.get();
+          const existing = snapshot.exists ? snapshot.data() : {};
+          let customerId = typeof existing.customerId === "string" ? existing.customerId : "";
+          if (!customerId) {
+            const customer = await billingStore.stripe.customers.create({
+              email: typeof decoded.email === "string" ? decoded.email : undefined,
+              metadata: {firebaseUid: uid}
+            });
+            customerId = customer.id;
+          }
+          const hostHeader = request.headers.host;
+          const appUrl = settings.appPublicUrl || (typeof hostHeader === "string"
+            ? "https://" + hostHeader
+            : "");
+          if (!appUrl) {
+            sendJson(response, 500, {error: "The public app URL is not configured."});
+            return;
+          }
+          const session = await billingStore.stripe.checkout.sessions.create({
+            mode: "subscription",
+            customer: customerId,
+            line_items: [{price: billingStore.priceId, quantity: 1}],
+            allow_promotion_codes: true,
+            client_reference_id: uid,
+            metadata: {firebaseUid: uid},
+            subscription_data: {metadata: {firebaseUid: uid}},
+            success_url: appUrl.replace(/\/$/, "") + "/?billing=success",
+            cancel_url: appUrl.replace(/\/$/, "") + "/?billing=cancel"
+          });
+          sendJson(response, 200, {url: session.url});
+          return;
+        }
+        const snapshot = await membershipRef.get();
+        const membership = snapshot.exists ? snapshot.data() : {};
+        if (!membership.customerId) {
+          sendJson(response, 400, {error: "No Stripe customer is linked to this account."});
+          return;
+        }
+        const hostHeader = request.headers.host;
+        const appUrl = settings.appPublicUrl || (typeof hostHeader === "string"
+          ? "https://" + hostHeader
+          : "");
+        const portal = await billingStore.stripe.billingPortal.sessions.create({
+          customer: membership.customerId,
+          return_url: appUrl.replace(/\/$/, "") + "/"
+        });
+        sendJson(response, 200, {url: portal.url});
+      } catch (error) {
+        process.stderr.write("Billing request failed: " +
+          (error && typeof error.code === "string" ? error.code : "billing-error") + "\n");
+        sendJson(response, 502, {error: "Stripe could not complete this billing request."});
+      }
       return;
     }
 

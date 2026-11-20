@@ -61,6 +61,11 @@ async function initializeCloudHistory() {
         }
         return user.getIdToken();
       },
+      async getBillingIdToken() {
+        const user = auth.currentUser;
+        if (!user || user.isAnonymous) throw new Error("Sign in with Google before managing membership.");
+        return user.getIdToken();
+      },
       async mergeHistory(localEntries, mergeEntries) {
         const user = auth.currentUser;
         if (!user) throw new Error("Sign in with Google before syncing history.");

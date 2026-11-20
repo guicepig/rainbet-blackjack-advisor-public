@@ -11,6 +11,7 @@
     "test": "node --test rainbet-original-blackjack-advisor.test.cjs"
   },
   "dependencies": {
-    "firebase-admin": "^14.5.1"
+    "firebase-admin": "^14.5.1",
+    "stripe": "^23.2.0"
   }
 }

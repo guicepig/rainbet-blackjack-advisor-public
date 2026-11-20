@@ -32,6 +32,13 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
+    match /users/{userId}/membership/{membershipId} {
+      allow read: if request.auth != null
+        && request.auth.uid == userId
+        && membershipId == "current";
+      allow create, update, delete: if false;
+    }
+
     match /trainingAggregates/{scenarioId} {
       allow read, write: if false;
     }
