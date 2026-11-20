@@ -66,7 +66,6 @@
     }
     .premium-quickstart,
     .advisor-session-strip,
-    .advisor-wager-card,
     .advisor-pattern-card,
     .sticky-advisor-recommendation,
     .advisor-history-details {
@@ -528,6 +527,8 @@
       background: radial-gradient(ellipse at 92% 0, rgba(89, 205, 132, .2), transparent 48%), linear-gradient(145deg, #193323, #101b14);
       box-shadow: 0 12px 28px rgba(0, 0, 0, .24), inset 0 1px rgba(230, 255, 236, .06);
     }
+    .advisor-wager-card .advisor-pattern-card { display: none; }
+    .advisor-wager-history { max-width: 72ch; }
     .advisor-wager-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .advisor-wager-kicker { margin: 0 0 3px; color: #a7dcb6; font-size: .64rem; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
     .advisor-wager-title { margin: 0; color: #effff2; font-size: 1.05rem; }
@@ -760,6 +761,11 @@
       .advisor-live-reason { font-size: .7rem; }
       .advisor-live-insurance { font-size: .65rem; }
       .advisor-wager-card { padding: 12px; }
+      .advisor-wager-kicker, .advisor-wager-cap-badge, .advisor-wager-guidance, .advisor-wager-history, .advisor-wager-note {
+        display: none;
+      }
+      .advisor-wager-result { margin: 0; padding: 8px 10px; }
+      .advisor-wager-title { font-size: .82rem; }
       .advisor-wager-controls { gap: 8px; }
       .advisor-wager-controls label { font-size: .68rem; }
       .advisor-wager-controls input, .advisor-wager-controls select { min-height: 38px; font-size: .76rem; }
@@ -1549,7 +1555,7 @@
           </details>
           <details class="advisor-history-details">
             <summary>Past decisions for this hand</summary>
-            <p class="fine" id="historyInsight" aria-live="polite">This exact-hand comparison reviews action choices only; separate outcome-pattern estimates are experimental.</p>
+            <p class="fine" id="historyInsight" aria-live="polite">Past decisions are compared for this exact setup. Validated outcome history can separately inform the fictional pre-deal stake.</p>
           </details>
         </div>
         <section class="advisor-wager-card" aria-labelledby="advisorWagerTitle">
@@ -1606,7 +1612,7 @@
               </select>
             </label>
           </div>
-          <p class="advisor-wager-note" id="advisorWagerNote">Fictional credits only. Choose the suggested amount before entering the next practice hand. Auto uses the recent-20 W/P/L pattern only if it passes chronological out-of-sample validation; it never uses cards not yet dealt or the current action. First-action rates are descriptive only, and Split is one entered round-level result.</p>
+          <p class="advisor-wager-note" id="advisorWagerNote">Fictional pre-deal stake. Saved W/P/L history and validated historical patterns inform this amount; current cards affect move advice only. Split is one entered round-level result.</p>
         </section>
       </section>
       <div class="advisor-session-strip" aria-label="Fictional session snapshot">
@@ -1910,9 +1916,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
     <section class="panel" data-feature-panel="strategy" aria-labelledby="strategy-title" hidden>
       <h2 id="strategy-title">Strategy overview</h2>
       <p class="fine">The exact decision implementation runs on the advisor server and is not included in this public page. For eligible non-split hands against dealer 2–9, it compares hit, stand, and available double actions using eight-deck S17 rank probabilities with a replacement approximation. Pair splits and hands against 10 or Ace use the published-rule basic-strategy baseline because some live-table rules are not published. It is not a guarantee or prediction; actual strategy may differ if live rules differ.</p>
-      <p class="fine">Card ranks, dealer upcard, and selected rule toggles are sent to the app server for each move recommendation. Hand history, outcome, wager, and fictional-credit balance are not sent for strategy calculations. The practice sizing selector and descriptive outcome summary run locally and do not send balance or betting history to the server.</p>
+      <p class="fine">Card ranks, dealer upcard, and selected rule toggles are sent to the app server for each move recommendation. Hand history, outcome, wager, and fictional-credit balance run locally for the pre-deal sizing estimate and are not sent for move calculations.</p>
       <p class="warning">Moving the implementation to a server hides its source from ordinary page inspection, but repeated requests can still reveal recommendation behavior. It is not a guarantee against reverse engineering.</p>
-      <p class="fine">The advisor does not track cards across hands, make real-money wager recommendations, or place bets. For supported non-split hands against dealer 2–9, its 8-deck S17 replacement model estimates win/push/loss chances for stand, hit, and double; DOUBLE assumes one more card and twice the exposure. Pair splits and other unsupported hands do not have this analytical outcome model. The recent-20 history model compares chronological out-of-sample multiclass Brier scores against an overall baseline and exposes an approximate paired lower bound. Auto may use that experimental pattern for a pre-deal fictional amount only with at least 30 predictions and a positive lower bound; otherwise the history pattern is display-only. The amount is independent of the current cards and future action. First-action W/P/L rates are descriptive, not pre-deal inputs; a split entry records one round-level result, not each split hand. History probabilities assume even-money W/L for the sizing calculation, and reliable recorded net returns can cap the amount. This experimental gate is not proof of a durable advantage. The current-hand model still has an 8-deck S17 replacement approximation and may not match live rules. Balance, session-loss, and up-to-4× exposure caps apply; explicit progressions can rapidly exhaust the fictional balance. Confirm current table rules and terms before relying on any reference.</p>
+      <p class="fine">The advisor does not track cards across hands, make real-money wager recommendations, or place bets. For supported non-split hands against dealer 2–9, its 8-deck S17 replacement model estimates win/push/loss chances for stand, hit, and double; DOUBLE assumes one more card and twice the exposure. Pair splits and other unsupported hands do not have this analytical outcome model. The recent-20 history model compares chronological out-of-sample multiclass Brier scores against an overall baseline and exposes an approximate paired lower bound. It is a separate pre-deal input: Auto may use it for a fictional amount only with at least 30 predictions and a positive lower bound; otherwise the baseline or recorded-return evidence remains. The stake is independent of the current cards and future action. First-action W/P/L rates provide context, while split entries remain round-level results. History probabilities assume even-money W/L for sizing, and exact recorded net returns can cap the amount. This experimental gate is not proof of a durable advantage. The current-hand model still has an 8-deck S17 replacement approximation and may not match live rules. Balance, session-loss, and up-to-4× exposure caps apply. Confirm current table rules and terms before relying on any reference.</p>
       <p class="fine">Method references: <a href="https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm" target="_blank" rel="noopener noreferrer">NIST guidance on Wilson proportion intervals</a>, <a href="https://wizardofodds.com/games/blackjack/expected-values/" target="_blank" rel="noopener noreferrer">Wizard of Odds blackjack expected values</a>, <a href="https://wizardofodds.com/games/blackjack/effect-of-removal/" target="_blank" rel="noopener noreferrer">card-removal effects</a>, and <a href="https://scikit-learn.org/stable/modules/model_evaluation.html#brier-score-loss" target="_blank" rel="noopener noreferrer">proper scoring rules and Brier-score evaluation</a>. Kelly sizing assumes a known return distribution and positive expected value; this practice model's approximate validation does not establish a durable edge.</p>
       <p class="fine">Sources: <a href="https://rainbet.com/casino/originals/blackjack" target="_blank" rel="noopener noreferrer">Rainbet Blackjack rules</a> and <a href="https://rainbet.com/terms" target="_blank" rel="noopener noreferrer">Rainbet terms</a>.</p>
     </section>
@@ -2233,7 +2239,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
     <p>This policy explains what this blackjack strategy reference handles. It does not connect to Rainbet or read Rainbet account data. No paid membership or payment feature is currently offered.</p>
     <h3>Information and purposes</h3>
     <ul class="fine">
-      <li><strong>On this device:</strong> if you use the advisor, hand records (cards, moves, outcomes, and wager amounts), practice progress, fictional-credit balance, strategy preference, and session-limit entries may be saved in this browser's local storage. The Stats view calculates decision-accuracy and practice summaries from that local data; it does not create a separate record or upload those summaries. The wager card displays overall and recent-pattern win/push/loss estimates from up to 100 resolved fictional-credit hands. Supported non-split hands against dealer 2–9 also display an 8-deck S17 replacement-model probability breakdown for stand, hit, and double. The next-hand pre-deal suggestion is independent of the current cards and action. Auto uses the recent-20 W/P/L pattern only after at least 30 chronological out-of-sample predictions and an approximate positive paired Brier-improvement lower bound over the overall baseline; otherwise it is display-only, with conservative return-based sizing or the practice baseline used instead. First-action probabilities, including Split, are descriptive only; a Split outcome is one round-level result. History-based W/L sizing assumes even-money returns, and reliable recorded net-return evidence caps any increase. These estimates are experimental, uncertain, and not real-money advice. The summary, balance, and hand history are not sent to the app server. They remain until you clear them in the app or your browser. A previously saved balance number is retained 1:1 as fake credits; no currency conversion is performed.</li>
+      <li><strong>On this device:</strong> if you use the advisor, hand records (cards, moves, outcomes, and wager amounts), practice progress, fictional-credit balance, strategy preference, and session-limit entries may be saved in this browser's local storage. The current-hand model recommends moves; saved history is processed separately for the fictional pre-deal stake. The recent-20 pattern can affect Auto sizing only after at least 30 chronological predictions and a positive approximate paired Brier-improvement lower bound. Otherwise conservative recorded-return evidence or the practice baseline remains. The stake is independent of the current cards and future action. First-action probabilities provide context, and Split is one round-level result. History-based W/L sizing assumes even-money returns unless exact net returns are recorded. These estimates are experimental, uncertain, and not real-money advice. The summary, balance, and hand history stay in your browser unless you choose cloud sync. They remain until you clear them in the app or browser.</li>
       <li><strong>Advisor requests:</strong> the card ranks you enter, dealer upcard, and selected rule toggles are sent to the operator's server to calculate each recommendation or practice answer. Requests are processed in memory and are not saved to the app's history or logged by the application. Hand history, outcomes, wager amounts, and balance are not sent for recommendations. The hosting provider may process your IP address and technical request metadata.</li>
       <li><strong>Optional Google history sync:</strong> this is currently inactive until Firebase is configured. If enabled and you choose to sign in, Firebase Authentication processes your Google account identity and Firestore stores the history you choose to sync. Cloud history can contain the hand and wager details listed above. You can clear synced history in the app; contact the privacy email to request deletion of the Firebase account or assistance with other requests.</li>
       <li><strong>Optional shared hand statistics:</strong> off by default and separate from analytics and Google history sync. Only future completed hands are eligible after you opt in; existing local history is not uploaded. The app sends card ranks, dealer upcard, table-rule settings, the recommendation, your recorded first action, and categorical win/loss/push result. Wager, balance, net result, final-card sequence, Google email, and Google account ID are excluded. Firebase Authentication issues a separate anonymous identifier; the server uses it to verify the submission and create a keyed duplicate-prevention receipt, then stores only aggregate scenario/action/outcome counts. Raw hand records and the anonymous identifier are not stored in those aggregates. Because aggregate counts cannot be tied back to an individual, a contribution cannot be removed individually after aggregation. You may withdraw consent to stop future sharing. Shared aggregates are for quality checks only; they are not used in the local history-based wager sizing or move advice.</li>
@@ -2274,8 +2280,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
     <p class="fine">This site is for adults only: you must be at least 18 and meet the legal age for gambling-related services where you are located, whichever age is higher. Do not use it where gambling-related tools are prohibited. You are responsible for checking and following the laws and platform rules that apply to you.</p>
     <h3>What the advisor does—and does not do</h3>
     <ul class="fine">
-      <li>The advisor provides manual blackjack strategy references and record-keeping tools for educational purposes. Recommendations are not guarantees and cannot remove the house edge. A separate experimental estimate summarizes historical outcome patterns but cannot establish a dependable forecast or change the recommended move.</li>
-      <li>The balance, wager entry, session limit, and suggestions in this advisor use fictional credits only. The next-hand pre-deal amount does not use cards or actions from the hand being entered. Auto may use the recent-20 W/P/L pattern only with at least 30 chronological out-of-sample predictions and an approximate positive paired Brier-improvement lower bound over the overall baseline; otherwise the pattern is display-only, and conservative return-based sizing or the practice baseline applies. The experimental W/L calculation assumes even-money returns, while reliable recorded net returns cap any increase. First-action rates are descriptive, and a Split result is one round-level label. The pattern validation is not proof of a durable advantage or a guarantee. A practice-risk cap reserves up to 4× exposure for doubles/splits; actual table rules may vary. Balance and session-loss limits apply, and explicit progressions can rapidly exhaust fictional credits. Never use these amounts or progressions for real-money wagers.</li>
+      <li>The advisor provides manual blackjack strategy references and record-keeping tools for educational purposes. Move recommendations are not guarantees and cannot remove the house edge. A separate experimental estimate uses validated saved history to suggest a fictional pre-deal stake; it can inform sizing but cannot establish a dependable forecast or change the recommended move.</li>
+      <li>The balance, wager entry, session limit, and suggestions use fictional credits only. The pre-deal stake uses saved outcomes and, when statistically validated, a recent-20 W/P/L pattern. It does not use cards or actions from the hand being entered. The experimental W/L calculation assumes even-money returns unless exact net returns are recorded. First-action rates provide context, and a Split result is one round-level label. A practice-risk cap reserves up to 4× exposure for doubles/splits. Never use these amounts or progressions for real-money wagers.</li>
       <li>Sharing hand statistics is optional and off by default. Opted-in future hands contribute minimized aggregate counts for quality checks only; they do not train or change recommendations. The experimental recent-outcome model runs locally on saved fictional-credit results.</li>
       <li>The advisor does not connect to Rainbet, access or control a Rainbet account, automate play, or place bets. It is not affiliated with or endorsed by Rainbet.</li>
       <li>It is not financial, legal, or professional advice. Do not risk money you cannot afford to lose. Stop playing if gambling is causing harm.</li>
@@ -2437,7 +2443,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
               <button type="button" class="secondary" id="clearManualBalance">Clear saved balance</button>
             </div>
             <label class="wager-cap-opt-in"><input id="enableWagerCap" type="checkbox" checked> Enable fictional-credit wager suggestions</label>
-            <p class="fine">The next-hand pre-deal amount does not use the current cards or action. Auto may use the recent-20 W/P/L pattern only with at least 30 chronological out-of-sample predictions and an approximate positive paired Brier-improvement lower bound over the overall baseline; otherwise the pattern is display-only. The experimental W/L calculation assumes even-money returns, and reliable recorded net-return evidence caps any increase. First-action rates are descriptive; a Split result is one round-level label. Validation is not proof of a durable edge. The current-hand EV model is for play advice only and assumes 8-deck S17 with replacement. Balance, session-loss, and up-to-4× exposure limits apply; explicit progressions can rapidly exhaust the practice balance.</p>
+            <p class="fine">The next-hand pre-deal amount uses saved outcomes and validated recent-20 W/P/L history, but never the current cards or future action. Current cards drive move advice only. Exact recorded net returns and a 4× exposure limit can cap sizing. First-action rates provide context, and a Split result is one round-level label. Validation is not proof of a durable edge. Balance and session-loss limits apply.</p>
             <p id="manualBalanceStatus" class="fine" aria-live="polite"></p>
           </section>
         </section>
@@ -2931,7 +2937,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           return "No. The advisor uses visible cards and published rule assumptions for basic-strategy guidance. It cannot predict cards or guarantee a result; the verifier checks completed rounds only.";
         }
         if (mentions("how much should i bet", "how much should i wager", "what should i wager", "bet size", "wager amount", "recommended bet")) {
-          return "The advisor suggests fictional pre-deal amounts only; set one before entering the next practice hand. Auto uses the recent-20 W/P/L pattern only after at least 30 chronological out-of-sample predictions and an approximate positive lower bound on Brier improvement over the overall baseline. Otherwise it uses the practice baseline or conservative recorded-return evidence. The amount does not use the current cards or action. First-action rates are descriptive, and Split is one round-level result. History-based W/L sizing assumes even-money payouts and is experimental, not real-money advice or a reliable forecast.";
+          return "The advisor uses saved outcomes for a fictional pre-deal stake; set it before entering the next practice hand. Auto uses the recent-20 W/P/L pattern only after at least 30 chronological predictions and a positive lower bound on out-of-sample Brier improvement. Otherwise it uses conservative recorded-return evidence or the practice baseline. The stake does not use the current cards or future action. Move advice remains separate.";
         }
         if (mentions("use the advisor", "using the advisor", "how do i enter", "enter cards", "get advice", "how do i use")) {
           return "Use the visual card picker: click Add here on the table area you want, then choose a rank and suit and add the card. Build the dealer upcard and starting hand first. Choose Hit, Stand, Double, or Split in the move panel; your first action is recorded, and the card prompt advances the hand and gets updated advice. After you stand, or after a non-busting double or a hand reaches 21, enter the dealer's hole card and each required draw; the hand completes when the dealer reaches 17 or busts. A player bust ends the hand without dealer draws. A split deals one new card to each hand before playing them in order.";
@@ -2964,7 +2970,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           return "The Simulator is an offline practice game using fictional credits and a locally shuffled eight-deck shoe. It does not connect to Rainbet or count cards between rounds. Its Animation speed control changes deal, reveal, and turn effects only; the selected DAS assumption affects practice play.";
         }
         if (mentions("learn based on history", "learn from history", "history of past bets", "past bets", "history learning")) {
-          return "The advisor shows current-hand win/push/loss probabilities for supported non-split hands against dealer 2–9, plus smoothed recent-history and first-action W/P/L summaries. The current-hand model assumes 8-deck S17 play with replacement. Auto's next-hand pre-deal amount ignores current cards and actions; it may use the recent-20 pattern only after at least 30 chronological predictions and an approximate positive lower bound on out-of-sample Brier improvement. First-action rates, including Split, are descriptive only and never set the pre-deal amount. This experimental validation does not prove a lasting edge.";
+          return "The advisor shows current-hand win/push/loss probabilities and also uses saved outcomes for a separate fictional pre-deal stake. Move advice uses visible cards and 8-deck S17 assumptions. Wager sizing ignores current cards and future actions and may use the recent-20 pattern only after chronological validation. It cannot prove a lasting edge.";
         }
         if (mentions("practice", "learn", "drill", "spaced review")) {
           return "Practice deals generated scenarios and can prioritize recorded decisions that differed from the saved strategy. Correct answers are spaced out (1, 3, 7, then 14 days); missed scenarios return sooner (after 10 minutes). Those are simple app defaults. Outcome patterns train only the experimental local estimate, not action advice or practice order.";
@@ -5016,7 +5022,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
                   (probabilities.push * 100).toFixed(1) + "/" +
                   (probabilities.loss * 100).toFixed(1) + "% (n=" + actionOutcomes.sampleSize + ")";
               }).join("; ") +
-              ". Estimates shrink toward overall/recent-context rates and are descriptive only; they do not determine the pre-deal stake. SPLIT uses the entered round-level result, not separate split-hand outcomes."
+              ". Estimates shrink toward overall/recent-context rates. Validated history may inform the fictional pre-deal stake, separately from move advice. SPLIT uses one round-level result."
             : "No recorded first-action outcome sample for HIT, STAND, DOUBLE, or SPLIT yet.";
           model.contexts.forEach((context) => {
             const row = document.createElement("tr");
@@ -5424,7 +5430,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
             byId("reason").textContent = result.explanation;
             byId("decisionAnalysis").textContent = result.analysis
               ? formatDecisionAnalysis(result.analysis)
-              : "Current-hand win/push/loss probabilities are unavailable for this split or dealer upcard. The displayed action uses the published-rule basic-strategy baseline; the history summary is descriptive only.";
+              : "Current-hand win/push/loss probabilities are unavailable for this split or dealer upcard. The displayed action uses the published-rule basic-strategy baseline; separate wager sizing can still use validated saved history.";
           }
           const type = result.hand.soft ? "Soft " : "Hard ";
           const drawSummary = afterSplit
@@ -5639,7 +5645,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         amountDisplay.textContent = "—";
         message.classList.remove("error");
         byId("advisorWagerNote").textContent =
-          "Fictional credits only. Set this pre-deal amount before entering the next practice hand; it is not connected to Rainbet. Auto may use the recent-20 W/P/L pattern only after at least 30 chronological out-of-sample predictions and an approximate positive 95% lower bound on Brier improvement over the overall baseline. Otherwise it uses the practice baseline or conservative recorded-return evidence. First-action and split-round estimates below are descriptive, not inputs to a pre-deal stake. All estimates are experimental, uncertain, and not guarantees.";
+          "Fictional pre-deal stake. Set it before entering the next practice hand; it is not connected to Rainbet. Saved outcomes and, after chronological validation, the recent-20 W/P/L pattern inform this amount. Current cards and future actions affect move advice, not stake sizing.";
         let recentHands;
         let outcomes;
         try {
@@ -5670,7 +5676,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           } else {
             historyDisplay.textContent += " No wagered history with a calculable net return yet.";
           }
-          historyDisplay.textContent += " First-action rates are descriptive only; the pre-deal amount does not use a future action or the cards being entered.";
+          historyDisplay.textContent += " First-action rates are reference data; validated saved history can inform the separate pre-deal fictional stake.";
         } catch (error) {
           historyDisplay.textContent = "Recent outcome summary unavailable: " + error.message;
           historyDisplay.classList.add("error");
@@ -7484,7 +7490,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
               " pushes · " + pendingCount + " pending. Decision review: " + reviewCounts.matched + " matched advice, " + reviewCounts.conditional +
               " matched a conditional DAS alternative, " + reviewCounts.different + " differed, " +
               reviewCounts.unreviewed + " not reviewable." + amountSummary + netSummary +
-              " The recent-20 pattern estimate does not change strategy advice or wager sizing; eligible recorded wager returns may reduce Auto sizing."
+              " The recent-20 pattern estimate is separate from move advice; validated history and eligible recorded wager returns may change Auto sizing."
             : "No hands saved in this browser.";
           renderHistoryEntries(entries);
         } catch (error) {

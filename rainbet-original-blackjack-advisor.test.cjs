@@ -763,8 +763,8 @@ test("public policy disclosures cover local data, optional providers, and curren
   assert.match(html, /offline by default/);
   assert.match(html, /does not connect to Rainbet/);
   assert.match(html, /fictional credits only/);
-  assert.match(html, /at least 30 chronological out-of-sample predictions/);
-  assert.match(html, /approximate positive paired Brier-improvement lower bound/);
+  assert.match(html, /at least 30 chronological predictions/);
+  assert.match(html, /positive approximate paired Brier-improvement lower bound/);
   assert.match(html, /Never use these amounts or progressions for real-money wagers/);
   assert.match(html, /No paid membership or payment feature is currently offered/);
   assert.match(html, /Optional shared hand statistics/);
@@ -1712,7 +1712,7 @@ test("offline helper answers site topics and explains the current preview withou
   assert.match(helperReply("How does the simulator work?"), /fictional credits/);
   assert.match(helperReply("How does practice learning work?"), /missed scenarios return sooner/);
   assert.match(helperReply("Are you as capable as you?"), /not a general-purpose generative AI/);
-  assert.match(helperReply("How much should I wager?"), /fictional pre-deal amounts/);
+  assert.match(helperReply("How much should I wager?"), /fictional pre-deal stake/);
   assert.match(helperReply("How much should I wager?"), /recent-20 W\/P\/L pattern/);
   assert.match(helperReply("What is a soft hand?"), /ace currently counted as 11/);
   assert.match(helperReply("What does split mean?"), /separates a pair into two hands/);
@@ -1720,7 +1720,7 @@ test("offline helper answers site topics and explains the current preview withou
   assert.match(helperReply("Can I count cards?"), /does not count cards/);
   assert.match(helperReply("What factors does the advisor use?"), /8-deck S17 rank-probability model/);
   assert.match(helperReply("What factors does the advisor use?"), /does not track earlier hands/);
-  assert.match(helperReply("I want the advisor to learn based on history of past bets"), /smoothed recent-history and first-action W\/P\/L summaries/);
+  assert.match(helperReply("I want the advisor to learn based on history of past bets"), /uses saved outcomes for a separate fictional pre-deal stake/);
   assert.match(helperReply("What is the house edge?"), /long-run expected loss/);
   assert.match(helperReply("Can I predict the next card?"), /cannot predict cards/);
   assert.match(helperReply("Does this connect to my account?"), /does not connect to your Rainbet account/);
@@ -2894,6 +2894,7 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
 });
 
 test("wager suggestion is prominent and displays a history-based estimate", () => {
+  assert.match(html, /Saved W\/P\/L history and validated historical patterns inform this amount/);
   assert.match(html, /@keyframes advisor-action-pop/);
   assert.match(html, /@keyframes advisor-selection-pulse/);
   assert.match(mainScript, /popRecommendedAction/);
@@ -2915,7 +2916,7 @@ test("wager suggestion is prominent and displays a history-based estimate", () =
   assert.match(html, /id="outcomePatternProbability" aria-live="polite"/);
   assert.match(html, /id="actionOutcomeSummary" aria-live="polite"/);
   assert.match(mainScript, /not conditioned on the current cards/);
-  assert.match(html, /round-level result, not separate split-hand outcomes/);
+  assert.match(html, /Saved W\/P\/L history and validated historical patterns inform this amount/);
   assert.match(html, /Previous 20 results/);
   assert.match(html, /Smoothed W\/P\/L/);
   assert.match(html, /Auto · adjust from history \(fictional only\)/);
