@@ -750,6 +750,12 @@ test("settings provide private account, appearance, interface, privacy, practice
 
 test("public policy disclosures cover local data, optional providers, and current lack of payments", () => {
   assert.match(html, /id="privacyPolicyDialog"/);
+  assert.match(html, /id="welcomeDialog"/);
+  assert.match(html, /id="welcomePrivacyAccept"/);
+  assert.match(html, /id="welcomeUsageAccept"/);
+  assert.match(html, /id="acceptWelcome"[^>]*disabled/);
+  assert.match(mainScript, /rainbet-welcome-policy-consent-v1/);
+  assert.match(mainScript, /accepted-v1/);
   assert.match(html, /id="usagePolicyDialog"/);
   assert.match(html, /guicepig@gmail\.com/);
   assert.match(html, /cards, moves, outcomes, and wager amounts/);

@@ -1084,6 +1084,23 @@
     }
     .site-footer button { min-height: 40px; margin: 0; padding: 8px 12px; font-size: .78rem; }
     .policy-dialog { max-width: 760px; }
+    .welcome-dialog { width: min(680px, calc(100vw - 24px)); max-height: min(88vh, 760px); }
+    .welcome-dialog::backdrop { background: rgba(3, 8, 5, .84); backdrop-filter: blur(6px); }
+    .welcome-intro {
+      margin: 14px 0 16px; padding: 14px 16px;
+      border: 1px solid rgba(114, 224, 171, .24); border-radius: 14px;
+      background: rgba(114, 224, 171, .07); color: #dce7e0;
+    }
+    .welcome-checks { display: grid; gap: 10px; margin: 14px 0; }
+    .welcome-checks label {
+      display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 9px;
+      align-items: start; color: #dce5df; font-size: .86rem; line-height: 1.45;
+    }
+    .welcome-checks input { width: 17px; min-height: 17px; height: 17px; margin: 3px 0 0; }
+    .welcome-policy-links { display: flex; flex-wrap: wrap; gap: 8px; }
+    .welcome-policy-links button { min-height: 38px; margin: 0; padding: 7px 10px; font-size: .78rem; }
+    .welcome-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+    .welcome-actions button { min-width: 180px; margin: 0; }
     .policy-dialog h3 { margin-top: 18px; }
     .policy-dialog p, .policy-dialog li { line-height: 1.55; }
     .policy-dialog ul { padding-left: 22px; }
@@ -2157,10 +2174,38 @@ node .\rainbet-gemini-server.cjs</code></pre>
   </main>
 
   <footer class="site-footer" aria-label="Policies and analytics">
+    <button type="button" class="secondary" id="openWelcome">About this site</button>
     <button type="button" class="secondary" id="openPrivacyPolicy">Privacy policy · Politique de confidentialité</button>
     <button type="button" class="secondary" id="openUsagePolicy">Usage policy · Conditions d’utilisation</button>
     <button type="button" class="secondary" id="manageAnalytics">Analytics preferences · Préférences d’analyse</button>
   </footer>
+
+  <dialog class="settings-dialog welcome-dialog" id="welcomeDialog" aria-labelledby="welcomeTitle" aria-describedby="welcomePurpose">
+    <div class="settings-heading">
+      <h2 id="welcomeTitle">Welcome to the advisor</h2>
+      <button type="button" class="secondary" id="closeWelcome" aria-label="Close welcome" hidden>×</button>
+    </div>
+    <p class="welcome-intro" id="welcomePurpose"><strong>This website helps you enter visible blackjack cards and review a basic-strategy move.</strong> It also includes fictional-credit practice tools and optional odds calculators. It does not connect to Rainbet, read or control an account, place bets, predict cards, or recommend real-money wagers.</p>
+    <p class="fine">The recommendation is for educational use. It is based on the cards you enter and the table rules you select. Short-term results can still lose, and the house edge remains.</p>
+    <div class="welcome-policy-links">
+      <button type="button" class="secondary" id="welcomePrivacyPolicy">Read privacy policy</button>
+      <button type="button" class="secondary" id="welcomeUsagePolicy">Read usage policy</button>
+    </div>
+    <div class="welcome-checks">
+      <label for="welcomePrivacyAccept">
+        <input id="welcomePrivacyAccept" type="checkbox">
+        <span>I have reviewed and accept the <strong>Privacy Policy</strong>, including local storage and optional third-party services.</span>
+      </label>
+      <label for="welcomeUsageAccept">
+        <input id="welcomeUsageAccept" type="checkbox">
+        <span>I have reviewed and accept the <strong>Usage Policy</strong>, I am an adult, and I understand this is not real-money advice.</span>
+      </label>
+    </div>
+    <p class="fine" id="welcomeConsentStatus" aria-live="polite">Both policy checkboxes are required.</p>
+    <div class="welcome-actions">
+      <button type="button" id="acceptWelcome" disabled>Continue to the advisor</button>
+    </div>
+  </dialog>
 
   <dialog class="settings-dialog policy-dialog" id="privacyPolicyDialog" aria-labelledby="privacyPolicyTitle">
     <div class="settings-heading">
@@ -2491,6 +2536,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         ? window.rainbetAnalyticsDomain.trim()
         : "";
       const analyticsPreferenceKey = "rainbet-analytics-consent-v1";
+      const welcomeConsentKey = "rainbet-welcome-policy-consent-v1";
       const balanceCurrencies = ["FAKE"];
       const legacyBalanceCurrencies = ["CAD", "USD", "EUR", "GBP", "AUD"];
       const wagerStrategyKey = "rainbet-advisor-fictional-strategy-v1";
@@ -2559,6 +2605,60 @@ node .\rainbet-gemini-server.cjs</code></pre>
         document.querySelectorAll("[data-close-dialog]").forEach((button) => {
           button.addEventListener("click", () => byId(button.dataset.closeDialog).close());
         });
+
+        const welcomeDialog = byId("welcomeDialog");
+        const privacyAccept = byId("welcomePrivacyAccept");
+        const usageAccept = byId("welcomeUsageAccept");
+        const acceptWelcome = byId("acceptWelcome");
+        const closeWelcome = byId("closeWelcome");
+        const consentStatus = byId("welcomeConsentStatus");
+        let acceptedConsent = false;
+        try {
+          acceptedConsent = localStorage.getItem(welcomeConsentKey) === "accepted-v1";
+        } catch {}
+
+        const syncWelcomeAccept = () => {
+          const ready = privacyAccept.checked && usageAccept.checked;
+          acceptWelcome.disabled = !ready;
+          consentStatus.textContent = ready
+            ? "Ready to continue."
+            : "Both policy checkboxes are required.";
+        };
+        privacyAccept.addEventListener("change", syncWelcomeAccept);
+        usageAccept.addEventListener("change", syncWelcomeAccept);
+        acceptWelcome.addEventListener("click", () => {
+          if (!privacyAccept.checked || !usageAccept.checked) {
+            syncWelcomeAccept();
+            return;
+          }
+          try {
+            localStorage.setItem(welcomeConsentKey, "accepted-v1");
+          } catch {}
+          acceptedConsent = true;
+          welcomeDialog.close();
+        });
+        closeWelcome.addEventListener("click", () => {
+          if (acceptedConsent) welcomeDialog.close();
+        });
+        welcomeDialog.addEventListener("cancel", (event) => {
+          if (!acceptedConsent) event.preventDefault();
+        });
+        byId("welcomePrivacyPolicy").addEventListener("click", () => byId("privacyPolicyDialog").showModal());
+        byId("welcomeUsagePolicy").addEventListener("click", () => byId("usagePolicyDialog").showModal());
+        byId("openWelcome").addEventListener("click", () => {
+          privacyAccept.checked = acceptedConsent;
+          usageAccept.checked = acceptedConsent;
+          closeWelcome.hidden = !acceptedConsent;
+          syncWelcomeAccept();
+          if (!welcomeDialog.open) welcomeDialog.showModal();
+        });
+        privacyAccept.checked = acceptedConsent;
+        usageAccept.checked = acceptedConsent;
+        closeWelcome.hidden = !acceptedConsent;
+        syncWelcomeAccept();
+        if (!acceptedConsent && !welcomeDialog.open) {
+          welcomeDialog.showModal();
+        }
 
         const banner = byId("analyticsConsent");
         const status = byId("analyticsConsentStatus");
