@@ -2888,6 +2888,14 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
 });
 
 test("wager suggestion is prominent and displays a history-based estimate", () => {
+  assert.match(html, /id="premiumQuickstart"/);
+  assert.match(html, /id="premiumHandsSaved"/);
+  assert.match(html, /id="premiumResolvedHands"/);
+  assert.match(html, /id="premiumMatches"/);
+  assert.match(html, /id="premiumSessionNet"/);
+  assert.match(html, /id="copyAdviceSummary"/);
+  assert.match(mainScript, /premiumQuickstartKey/);
+  assert.match(mainScript, /Recommendation summary copied/);
   assert.match(html, /class="advisor-wager-card" aria-labelledby="advisorWagerTitle"/);
   assert.match(html, /id="suggestedWagerAmount" aria-live="polite"/);
   assert.match(html, /id="wagerHistorySummary" aria-live="polite"/);
