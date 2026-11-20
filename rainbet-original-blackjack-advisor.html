@@ -54,6 +54,14 @@
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    .premium-quickstart,
+    .advisor-session-strip,
+    .advisor-wager-card,
+    .advisor-pattern-card,
+    .sticky-advisor-recommendation,
+    .advisor-history-details {
+      display: none !important;
+    }
     * { box-sizing: border-box; }
     html, body, button, input, select, textarea, summary, [role="button"] {
       -webkit-tap-highlight-color: transparent;
@@ -1405,8 +1413,20 @@
     }
     .command-palette-dialog { margin: auto; }
     @media (max-width: 720px) {
-      .hero { align-items: center; }
+      .hero { align-items: center; gap: 10px; padding: 16px; }
+      .brand-mark { width: 48px; height: 48px; border-radius: 14px; font-size: 1.12rem; }
+      .hero-copy .badge,
+      .hero-copy > p,
+      .header-balance,
+      #googleHistorySignIn,
+      #googleHistoryHeaderAccount,
+      .quick-nav-more,
+      .advisor-steps,
+      .sticky-advisor-recommendation { display: none !important; }
       .hero-copy h1 { font-size: clamp(1rem, 3.7vw, 1.35rem); }
+      .hero-actions { gap: 0; }
+      .header-actions-row { gap: 0; }
+      .header-actions-row button { min-height: 36px; padding: 7px 9px; }
       .panel { margin-top: 8px; padding: 14px; }
       .premium-quickstart { grid-template-columns: 38px 1fr; }
       .premium-quickstart-actions { grid-column: 1 / -1; }
