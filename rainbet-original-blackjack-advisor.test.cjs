@@ -2946,13 +2946,13 @@ test("wager suggestion is prominent and displays a history-based estimate", () =
   assert.match(mainScript, /inferredReturnSampleSize/);
   assert.match(mainScript, /effective sample/);
   assert.match(html, /History-based W\/L sizing assumes even-money returns/);
-  assert.match(mainScript, /Auto uses an experimental recent-20 W\/P\/L pattern/);
+  assert.match(mainScript, /Auto uses a validated recent-20 W\/P\/L pattern/);
   assert.match(mainScript, /amount is chosen before cards/);
   assert.match(html, /\.advisor-wager-card\s*\{[^}]*box-shadow/s);
   assert.match(mainScript, /renderOutcomePatternEstimate\(recentHands, outcomes\)/);
   assert.match(mainScript, /Current-hand model \(W\/P\/L = win\/push\/loss/);
   assert.match(mainScript, /handOutcomeQuarterKellyFraction/);
-  assert.match(mainScript, /Auto uses conservative empirical quarter-Kelly sizing/);
+  assert.match(mainScript, /Auto uses conservative empirical return evidence/);
   assert.match(mainScript, /negative-edge-no-wager/);
 });
 

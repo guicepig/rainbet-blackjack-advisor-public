@@ -5139,6 +5139,20 @@ node .\rainbet-gemini-server.cjs</code></pre>
           ? Math.min(riskProfile.fractionCap,
               basePracticeFraction * riskProfile.fractionScale)
           : 0;
+        const patternEvidenceConfidence = patternModel.walkForward.validated
+          ? Math.min(1, 0.65 + patternModel.walkForward.samples / 300)
+          : 0;
+        const returnEvidenceConfidence = empiricalReturnIsReliable
+          ? Math.min(1, outcomeEstimate.returnEffectiveSampleSize / 100)
+          : Math.min(0.3, outcomeEstimate.returnEffectiveSampleSize / 100);
+        const historicalEvidenceConfidence = outcomeEstimate.sampleSize
+          ? Math.min(1, outcomeEstimate.sampleSize / 100)
+          : 0;
+        const evidenceConfidence = Math.max(
+          patternEvidenceConfidence,
+          returnEvidenceConfidence,
+          historicalEvidenceConfidence * 0.35
+        );
         const historyHasNoPositiveEdge = rawProbabilityKellyFraction === 0;
         const sizingBasis = historyWeight > 0
           ? historyHasNoPositiveEdge
@@ -5165,6 +5179,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
             practiceFraction,
             riskMode,
             riskProfile,
+            evidenceConfidence,
             sizingBasis
           };
         }
@@ -5209,6 +5224,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           sizingProbabilities,
           riskMode,
           riskProfile,
+          evidenceConfidence,
           practiceFraction: strategyMode === "auto"
             ? practiceFraction
             : baseUnit * units / balance
@@ -5787,16 +5803,17 @@ node .\rainbet-gemini-server.cjs</code></pre>
           };
           const sizingExplanation = byId("wagerStrategy").value === "auto"
             ? cap.sizingBasis === "validated-history-quarter-kelly"
-              ? "Auto uses an experimental recent-20 W/P/L pattern that passed chronological out-of-sample validation, then applies conservative quarter-Kelly sizing. "
+              ? "Auto uses a validated recent-20 W/P/L pattern plus return evidence, then applies a confidence-adjusted stake. "
               : cap.outcomeEstimate.sizingBasis === "positive-edge-quarter-kelly"
-              ? "Auto uses conservative empirical quarter-Kelly sizing (" +
-                (cap.practiceFraction * 100).toFixed(2) + "% of practice balance; 2% cap). "
-              : "Auto uses the 1% practice unit because the outcome-pattern validation gate did not pass. "
+              ? "Auto uses conservative empirical return evidence (" +
+                (cap.practiceFraction * 100).toFixed(2) + "% after the selected mode). "
+              : "Auto uses a baseline with limited evidence; it does not treat history as a forecast. "
             : "Explicit " + strategyNames[cap.strategy] + " practice sizing; Auto's history adjustment is not applied.";
           const riskModeExplanation = " " + (cap.riskProfile ? cap.riskProfile.label : "Chill") +
             " risk mode applies a " + (cap.riskProfile
               ? (cap.riskProfile.fractionCap * 100).toFixed(1) + "% stake cap"
-              : "1.0% stake cap") + ".";
+              : "1.0% stake cap") + "; evidence confidence " +
+            ((cap.evidenceConfidence || 0) * 100).toFixed(0) + "%.";
           const estimateText = outcomes.winInterval
             ? " Non-push win-vs-loss estimate: " + (outcomes.winRate * 100).toFixed(1) +
               "% win, " + (outcomes.lossRate * 100).toFixed(1) +
