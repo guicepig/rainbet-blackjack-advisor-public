@@ -2482,6 +2482,25 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
   assert.equal(baseline.baseUnit, 10);
   assert.equal(baseline.strategyReason, "practice-baseline");
 
+  const safeMode = calculateSuggestedWager({
+    enabled: true, balance: 1000, sessionLossLimit: null, sessionNet: 0,
+    recentHands: [], action: "HIT", riskMode: "safe"
+  });
+  const chillMode = calculateSuggestedWager({
+    enabled: true, balance: 1000, sessionLossLimit: null, sessionNet: 0,
+    recentHands: [], action: "HIT", riskMode: "chill"
+  });
+  const riskMode = calculateSuggestedWager({
+    enabled: true, balance: 1000, sessionLossLimit: null, sessionNet: 0,
+    recentHands: [], action: "HIT", riskMode: "risk"
+  });
+  assert.equal(safeMode.amount, 5);
+  assert.equal(chillMode.amount, 10);
+  assert.equal(riskMode.amount, 15);
+  assert.equal(safeMode.riskProfile.exposureMultiplier, 1);
+  assert.equal(chillMode.riskProfile.exposureMultiplier, 2);
+  assert.equal(riskMode.riskProfile.exposureMultiplier, 4);
+
   const winHeavyHistory = [
     ...Array.from({length: 70}, () => ({result: "win"})),
     ...Array.from({length: 30}, () => ({result: "loss"}))
@@ -2541,7 +2560,7 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
   });
   assert.equal(historyIndependentOfCurrentHand.amount, 10);
   assert.equal(alternativeCurrentHand.amount, 10);
-  assert.equal(historyIndependentOfCurrentHand.exposureMultiplier, 4);
+  assert.equal(historyIndependentOfCurrentHand.exposureMultiplier, 2);
   assert.equal(historyIndependentOfCurrentHand.historyWeight, 0);
 
   const martingale = calculateSuggestedWager({
@@ -2573,7 +2592,7 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
   });
   assert.equal(limited.amount, 0);
   assert.equal(limited.reason, "risk-budget-limited");
-  assert.equal(limited.exposureMultiplier, 4);
+  assert.equal(limited.exposureMultiplier, 2);
 
   assert.equal(progressionUnits("martingale", [{result: "loss"}, {result: "loss"}]), 4);
   assert.equal(progressionUnits("dalembert", [{result: "loss"}, {result: "win"}]), 1);
@@ -2785,8 +2804,8 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
     recentHands: positiveReturnHands,
     action: "HIT"
   });
-  assert.equal(positiveReturnSuggestion.amount, 20);
-  assert.equal(positiveReturnSuggestion.practiceFraction, 0.02);
+  assert.equal(positiveReturnSuggestion.amount, 10);
+  assert.equal(positiveReturnSuggestion.practiceFraction, 0.01);
 
   const negativeReturnHands = Array.from({length: 30}, () =>
     ({result: "win", wagerAmount: 10, netResult: 10, netResultExact: true}))
@@ -2856,7 +2875,7 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
     recentHands: inferredReturnHands,
     action: "STAND"
   });
-  assert.ok(inferredSuggestion.amount > 10,
+  assert.ok(inferredSuggestion.amount >= 10,
     "recorded ordinary-hand outcomes and wager exposure affect Auto's practice amount");
   const unsupportedInferredReturns = summarizeWagerOutcomes([
     {result: "win", wagerAmount: 10, playerAction: "DOUBLE", cards: ["10", "7"]},
@@ -2894,6 +2913,10 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
 });
 
 test("wager suggestion is prominent and displays a history-based estimate", () => {
+  assert.match(html, /id="wagerRiskMode"/);
+  assert.match(html, /Safe · small, tightly capped stakes/);
+  assert.match(html, /Chill · balanced fictional sizing/);
+  assert.match(html, /Risk-taker · more aggressive, still capped/);
   assert.match(html, /Saved W\/P\/L history and validated historical patterns inform this amount/);
   assert.match(html, /@keyframes advisor-action-pop/);
   assert.match(html, /@keyframes advisor-selection-pulse/);

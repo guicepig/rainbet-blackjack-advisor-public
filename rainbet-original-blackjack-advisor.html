@@ -563,7 +563,7 @@
     }
     .advisor-pattern-details summary::-webkit-details-marker { display: none; }
     .advisor-pattern-details[open] summary { margin-bottom: 7px; background: rgba(171, 196, 223, .06); }
-    .advisor-wager-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 11px; }
+    .advisor-wager-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 11px; }
     .advisor-wager-controls label { display: grid; align-content: start; gap: 5px; color: #d3e2d6; font-size: .72rem; font-weight: 700; }
     .advisor-wager-controls input, .advisor-wager-controls select { width: 100%; min-height: 40px; margin: 0; padding: 7px 9px; font-size: .82rem; }
     .advisor-wager-note { margin: 8px 0 0; color: #aebcaf; font-size: .66rem; line-height: 1.45; }
@@ -767,6 +767,7 @@
       .advisor-wager-result { margin: 0; padding: 8px 10px; }
       .advisor-wager-title { font-size: .82rem; }
       .advisor-wager-controls { gap: 8px; }
+      .advisor-wager-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .advisor-wager-controls label { font-size: .68rem; }
       .advisor-wager-controls input, .advisor-wager-controls select { min-height: 38px; font-size: .76rem; }
       .advisor-wager-note { font-size: .62rem; }
@@ -1609,6 +1610,13 @@
                 <option value="martingale">Martingale · raises after a loss</option>
                 <option value="dalembert">D’Alembert · adjusts by one unit</option>
                 <option value="paroli">Paroli · raises after a win</option>
+              </select>
+            </label>
+            <label for="wagerRiskMode">Risk mode
+              <select id="wagerRiskMode">
+                <option value="safe">Safe · small, tightly capped stakes</option>
+                <option value="chill" selected>Chill · balanced fictional sizing</option>
+                <option value="risk">Risk-taker · more aggressive, still capped</option>
               </select>
             </label>
           </div>
@@ -2579,6 +2587,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       const balanceCurrencies = ["FAKE"];
       const legacyBalanceCurrencies = ["CAD", "USD", "EUR", "GBP", "AUD"];
       const wagerStrategyKey = "rainbet-advisor-fictional-strategy-v1";
+      const wagerModeKey = "rainbet-advisor-fictional-risk-mode-v1";
       let cloudHistoryClient = null;
       let cloudHistoryUser = null;
       let cloudHistoryReady = false;
@@ -5076,7 +5085,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         if (!options.enabled) {
           return {amount: null, reason: "disabled"};
         }
-        const {balance, sessionLossLimit, sessionNet, recentHands, action, strategyMode = "auto"} = options;
+        const {balance, sessionLossLimit, sessionNet, recentHands, action, strategyMode = "auto", riskMode = "chill"} = options;
         if (!Number.isFinite(balance) || balance < 0 ||
             !Number.isFinite(sessionNet) || !Array.isArray(recentHands)) {
           throw new Error("The fictional-credit strategy inputs have an unexpected format.");
@@ -5090,6 +5099,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
         }
         if (!["auto", "flat", "martingale", "dalembert", "paroli"].includes(strategyMode)) {
           throw new Error("Choose a supported fictional-credit strategy.");
+        }
+        if (!["safe", "chill", "risk"].includes(riskMode)) {
+          throw new Error("Choose a supported fictional-credit risk mode.");
         }
         const hands = recentHands
           .filter((hand) => hand && ["win", "loss", "push"].includes(hand.result))
@@ -5113,18 +5125,27 @@ node .\rainbet-gemini-server.cjs</code></pre>
         const empiricalReturnFraction = empiricalReturnIsReliable
           ? outcomeEstimate.practiceFraction
           : null;
-        const practiceFraction = rawProbabilityKellyFraction === null
+        const riskProfile = riskMode === "safe"
+          ? {label: "Safe", fractionScale: 0.5, fractionCap: 0.005, exposureMultiplier: 1}
+          : riskMode === "risk"
+            ? {label: "Risk-taker", fractionScale: 1.5, fractionCap: 0.02, exposureMultiplier: 4}
+            : {label: "Chill", fractionScale: 1, fractionCap: 0.01, exposureMultiplier: 2};
+        const basePracticeFraction = rawProbabilityKellyFraction === null
           ? outcomeEstimate.practiceFraction
           : Math.min(rawProbabilityKellyFraction, empiricalReturnFraction === null
             ? 0.02
             : empiricalReturnFraction);
+        const practiceFraction = strategyMode === "auto"
+          ? Math.min(riskProfile.fractionCap,
+              basePracticeFraction * riskProfile.fractionScale)
+          : 0;
         const historyHasNoPositiveEdge = rawProbabilityKellyFraction === 0;
         const sizingBasis = historyWeight > 0
           ? historyHasNoPositiveEdge
             ? "validated-history-no-positive-edge"
             : "validated-history-quarter-kelly"
           : outcomeEstimate.sizingBasis;
-        const exposureMultiplier = 4;
+        const exposureMultiplier = riskProfile.exposureMultiplier;
         const remainingLossLimit = sessionLossLimit !== null && sessionLossLimit !== undefined
           ? Math.max(0, sessionLossLimit + Math.min(sessionNet, 0))
           : balance;
@@ -5142,6 +5163,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
             historyWeight,
             sizingProbabilities,
             practiceFraction,
+            riskMode,
+            riskProfile,
             sizingBasis
           };
         }
@@ -5184,6 +5207,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           historyValidation: patternModel.walkForward,
           historyWeight,
           sizingProbabilities,
+          riskMode,
+          riskProfile,
           practiceFraction: strategyMode === "auto"
             ? practiceFraction
             : baseUnit * units / balance
@@ -5709,6 +5734,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
             sessionLossLimit: limitText ? Number(limitText) : null,
             sessionNet,
             recentHands,
+            riskMode: byId("wagerRiskMode").value,
             strategyMode: byId("wagerStrategy").value
           });
           outcomes = cap.outcomeEstimate || outcomes;
@@ -5767,6 +5793,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
                 (cap.practiceFraction * 100).toFixed(2) + "% of practice balance; 2% cap). "
               : "Auto uses the 1% practice unit because the outcome-pattern validation gate did not pass. "
             : "Explicit " + strategyNames[cap.strategy] + " practice sizing; Auto's history adjustment is not applied.";
+          const riskModeExplanation = " " + (cap.riskProfile ? cap.riskProfile.label : "Chill") +
+            " risk mode applies a " + (cap.riskProfile
+              ? (cap.riskProfile.fractionCap * 100).toFixed(1) + "% stake cap"
+              : "1.0% stake cap") + ".";
           const estimateText = outcomes.winInterval
             ? " Non-push win-vs-loss estimate: " + (outcomes.winRate * 100).toFixed(1) +
               "% win, " + (outcomes.lossRate * 100).toFixed(1) +
@@ -5794,7 +5824,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
               " It passed " + cap.historyValidation.samples + " chronological predictions; approximate paired 95% Brier-improvement lower bound: " +
               (cap.historyValidation.improvementLowerBound * 1000).toFixed(2) + " millipoints."
             : "";
-          message.textContent = sizingExplanation + estimateText + returnEstimateText +
+          message.textContent = sizingExplanation + riskModeExplanation + estimateText + returnEstimateText +
             sampleConfidence + sizingProbabilityText +
             " This amount is chosen before cards; it does not use this hand’s cards or action. " +
             "The pre-deal risk cap reserves " + cap.exposureMultiplier +
@@ -6231,6 +6261,24 @@ node .\rainbet-gemini-server.cjs</code></pre>
             byId("manualBalanceStatus").classList.add("error");
             renderSuggestedWager();
           }
+        });
+        const riskModeSelect = byId("wagerRiskMode");
+        try {
+          const savedMode = localStorage.getItem(wagerModeKey);
+          riskModeSelect.value = ["safe", "chill", "risk"].includes(savedMode)
+            ? savedMode
+            : "chill";
+        } catch {
+          riskModeSelect.value = "chill";
+        }
+        riskModeSelect.addEventListener("change", () => {
+          try {
+            localStorage.setItem(wagerModeKey, riskModeSelect.value);
+          } catch (error) {
+            byId("manualBalanceStatus").textContent = "Could not save the risk mode: " + error.message;
+            byId("manualBalanceStatus").classList.add("error");
+          }
+          renderSuggestedWager();
         });
         byId("useSuggestedWager").addEventListener("click", useSuggestedWager);
         initializeManualBalance();
