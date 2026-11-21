@@ -438,6 +438,19 @@ function isMembershipPaid(membership) {
     (membership.subscriptionStatus === "active" || trialActive);
 }
 
+function membershipAccountError(decoded) {
+  if (!decoded || typeof decoded.uid !== "string" || !decoded.firebase) {
+    return "Sign in with a Google or verified email account to use membership features.";
+  }
+  if (decoded.firebase.sign_in_provider === "password" && decoded.email_verified !== true) {
+    return "Verify your email address before using membership features.";
+  }
+  if (!["google.com", "password"].includes(decoded.firebase.sign_in_provider)) {
+    return "Use a Google or verified email account with an active membership.";
+  }
+  return "";
+}
+
 function getTestAccessEmails(settings) {
   const raw = settings.testAccessEmails === undefined
     ? process.env.TEST_ACCESS_EMAILS || ""
@@ -537,10 +550,8 @@ function createServer(options) {
     } catch {
       return {allowed: false, status: 401, error: "Your Google sign-in session is invalid or expired."};
     }
-    if (!decoded || typeof decoded.uid !== "string" ||
-        !decoded.firebase || decoded.firebase.sign_in_provider !== "google.com") {
-      return {allowed: false, status: 403, error: "Use a Google account with an active membership."};
-    }
+    const accountError = membershipAccountError(decoded);
+    if (accountError) return {allowed: false, status: 403, error: accountError};
     if (isTestAccount(decoded, testAccessEmails)) {
       return {allowed: true, uid: decoded.uid, testAccess: true};
     }
@@ -796,9 +807,9 @@ function createServer(options) {
         sendJson(response, 401, {error: "The Google sign-in session is invalid or expired."});
         return;
       }
-      if (!decoded || typeof decoded.uid !== "string" ||
-          !decoded.firebase || decoded.firebase.sign_in_provider !== "google.com") {
-        sendJson(response, 403, {error: "Use a Google account to manage membership."});
+      const accountError = membershipAccountError(decoded);
+      if (accountError) {
+        sendJson(response, 403, {error: accountError});
         return;
       }
       const uid = decoded.uid;

@@ -840,7 +840,7 @@ test("privacy disclosures explain local data, account sync, and optional provide
   assert.match(html, /Anyone with the shared code can use hand recommendations/);
   assert.match(html, /L’accès payant, lorsqu’il est configuré, nécessite une connexion Google et est traité par Stripe/);
   assert.doesNotMatch(html, /Aucun abonnement payant ni paiement n’est actuellement offert/);
-  assert.match(html, /Firebase must have Google sign-in enabled, the site's domain authorized/);
+  assert.match(html, /Firebase must have the relevant sign-in provider enabled, the site's domain authorized/);
   assert.match(html, /Your balance, practice progress, preferences, and session-limit entries stay in this browser/);
   assert.match(html, /Optional shared hand statistics/);
   assert.match(html, /Existing history is not uploaded/);
@@ -861,7 +861,7 @@ test("membership purchase is reachable from navigation and the advisor paywall",
   assert.match(html, /<dialog class="settings-dialog membership-dialog" id="membershipDialog"/);
   assert.match(html, /id="openSponsorSettingsFromMembership">Have a code\? Redeem without signing in<\/button>/);
   assert.match(mainScript, /byId\("openSponsorSettingsFromMembership"\)\.addEventListener/);
-  assert.match(html, /Google sign-in is free and does not start a subscription/i);
+  assert.match(html, /Signing in is free; billing begins only after you confirm checkout/i);
   assert.match(html, /id="membershipInstructions"/);
   assert.match(html, /id="membershipOptions" tabindex="-1"/);
   assert.match(html, /id="membershipPricingDetails"/);
@@ -869,14 +869,14 @@ test("membership purchase is reachable from navigation and the advisor paywall",
   assert.match(html, /Then \$10 USD\/month starting on day 8 unless canceled before renewal\./);
   assert.match(html, /id="membershipMonthlyPlan"/);
   assert.match(html, /Renews at \$10 USD\/month until canceled\./);
-  assert.match(html, /id="membershipSignIn" hidden disabled>Continue with Google<\/button>/);
+  assert.match(html, /id="membershipSignIn" hidden disabled>Sign in or create account<\/button>/);
   assert.match(html, /id="membershipBillingConsentLabel"[^>]*hidden/);
   assert.match(html, /id="membershipBillingConsent" type="checkbox"/);
   assert.match(html, /I agree to recurring billing for the plan I select\./);
   assert.match(html, /id="continueWithTestAccess" hidden>Continue to advisor<\/button>/);
   assert.match(mainScript, /byId\("openMembership"\)\.addEventListener\("click", openMembershipOptions\)/);
   assert.match(mainScript, /byId\("openMembershipFromPrompt"\)\.addEventListener\("click", openMembershipOptions\)/);
-  assert.match(mainScript, /byId\("membershipSignIn"\)\.addEventListener\("click", \(\) => signInWithGoogle\(\)\)/);
+  assert.match(mainScript, /byId\("membershipSignIn"\)\.addEventListener\("click", \(\) => openAccountAuth\("signin"\)\)/);
   assert.match(mainScript, /byId\("membershipBillingConsentLabel"\)\.hidden =\s*!signedIn \|\| membershipTestAccess \|\| membershipTier === "paid"/);
   assert.match(mainScript, /if \(!membershipDialog\.open\) membershipDialog\.showModal\(\)/);
   assert.match(mainScript, /const destination = byId\("membershipOptions"\)/);
@@ -930,15 +930,55 @@ test("Google sign-in supports mobile redirect and recovers popup-blocked desktop
   assert.match(moduleSource, /function shouldUseGoogleSignInRedirect\(\)/);
   assert.match(moduleSource, /authSdk\.signInWithRedirect\(auth, provider\)/);
   assert.match(moduleSource, /authSdk\.signInWithPopup\(auth, provider\)/);
+  assert.match(moduleSource, /async signIn\(\{allowCreate = false\} = \{\}\)/);
+  assert.match(moduleSource, /if \(isNewUser && !allowCreate\)/);
+  assert.match(moduleSource, /if \(isNewUser && googleSignInMode !== "signup"\)/);
+  assert.match(moduleSource, /authSdk\.deleteUser\(user\)/);
+  assert.match(moduleSource, /redirectResultPending \|\| googleSignInMode === "signin"/);
   assert.match(moduleSource, /Allow popups for this site/);
   assert.match(moduleSource, /authSdk\.getRedirectResult\(auth\)/);
   assert.match(moduleSource, /status: "auth-error"/);
 });
 
-test("website offers Google account creation alongside sign-in", () => {
-  assert.match(html, /id="googleHistorySignUp"[^>]*>Sign up with Google<\/button>/);
-  assert.match(html, /id="googleHistorySettingsSignUp"[^>]*>Sign up with Google<\/button>/);
-  assert.match(html, /New accounts are created when you continue with Google for the first time/);
+test("unregistered Google sign-in accounts are deleted and reported", async () => {
+  const moduleSource = fs.readFileSync(path.join(__dirname, "rainbet-cloud-history.mjs"), "utf8");
+  const start = moduleSource.indexOf("async function rejectUnregisteredGoogleAccount(");
+  const end = moduleSource.indexOf("async function initializeCloudHistory(", start);
+  assert.ok(start >= 0 && end > start, "new Google-account rejection helper should exist");
+  const rejectUnregisteredGoogleAccount = new Function(
+    moduleSource.slice(start, end) + "return rejectUnregisteredGoogleAccount;"
+  )();
+  const user = {uid: "new-google-user"};
+  const deletedUsers = [];
+  await assert.rejects(
+    rejectUnregisteredGoogleAccount({
+      async deleteUser(account) { deletedUsers.push(account); }
+    }, {}, user),
+    (error) => error.code === "auth/google-account-not-found" && /Switch to Sign up/.test(error.message)
+  );
+  assert.deepEqual(deletedUsers, [user]);
+
+  let signedOut = false;
+  await assert.rejects(
+    rejectUnregisteredGoogleAccount({
+      async deleteUser() { throw new Error("delete failed"); },
+      async signOut() { signedOut = true; }
+    }, {}, user),
+    (error) => error.code === "auth/google-account-cleanup-failed" && /could not remove/.test(error.message)
+  );
+  assert.equal(signedOut, true, "failed cleanup must still sign out the unregistered user");
+});
+
+test("website distinguishes email sign-up and sign-in while retaining Google as an alternative", () => {
+  const moduleSource = fs.readFileSync(path.join(__dirname, "rainbet-cloud-history.mjs"), "utf8");
+  assert.match(html, /id="googleHistorySignUp"[^>]*>Sign up<\/button>/);
+  assert.match(html, /id="googleHistorySettingsSignUp"[^>]*>Sign up<\/button>/);
+  assert.match(html, /id="accountAuthForm"/);
+  assert.match(moduleSource, /createUserWithEmailAndPassword/);
+  assert.match(moduleSource, /signInWithEmailAndPassword/);
+  assert.match(moduleSource, /sendPasswordResetEmail/);
+  assert.match(moduleSource, /sendEmailVerification/);
+  assert.match(html, /Or continue with Google\. Google may create an account automatically/);
   assert.match(html, /id="googleHistoryHeaderStatus"[^>]*aria-live="polite"/);
 
   const controlsStart = mainScript.indexOf("      function updateCloudHistoryControls()");
@@ -951,12 +991,29 @@ test("website offers Google account creation alongside sign-in", () => {
   const uiEnd = mainScript.indexOf("      function toggleHistory()", uiStart);
   assert.ok(uiStart >= 0 && uiEnd > uiStart, "cloud-history UI initializer should exist");
   const uiSource = mainScript.slice(uiStart, uiEnd);
-  assert.match(uiSource, /googleHistorySignUp"\)\.addEventListener\("click", \(\) => signInWithGoogle\(\)\)/);
-  assert.match(uiSource, /googleHistorySettingsSignUp"\)\.addEventListener\("click", \(\) => signInWithGoogle\(\)\)/);
-  assert.match(uiSource, /result\.isNewUser[\s\S]*Your Google account was created/);
+  assert.match(uiSource, /googleHistorySignUp"\)\.addEventListener\("click", \(\) => openAccountAuth\("signup"\)\)/);
+  assert.match(uiSource, /googleHistorySignIn"\)\.addEventListener\("click", \(\) => openAccountAuth\("signin"\)\)/);
+  assert.match(uiSource, /googleHistorySettingsSignUp"\)\.addEventListener\("click", \(\) => openAccountAuth\("signup"\)\)/);
+  assert.match(uiSource, /googleHistorySettingsSignIn"\)\.addEventListener\("click", \(\) => openAccountAuth\("signin"\)\)/);
+  assert.match(uiSource, /cloudHistoryClient\.signIn\(\{allowCreate: accountAuthMode === "signup"\}\)/);
+  assert.match(uiSource, /result\.isNewUser && accountAuthMode !== "signup"/);
+  assert.match(uiSource, /accountAuthGoogle"\)\.addEventListener\("click", \(\) => void signInWithGoogle\(\)\)/);
 });
 
-test("Google create-account button creates new users and still signs in existing users", async () => {
+test("email authentication errors explain Firebase setup and verification requirements", () => {
+  const start = mainScript.indexOf("      function getAccountAuthErrorMessage(");
+  const end = mainScript.indexOf("      function initializeCloudHistoryUi(", start);
+  assert.ok(start >= 0 && end > start, "account auth error mapper should exist");
+  const getAccountAuthErrorMessage = new Function(
+    mainScript.slice(start, end) + "return getAccountAuthErrorMessage;"
+  )();
+  assert.match(getAccountAuthErrorMessage({code: "auth/operation-not-allowed"}, "signup"), /Enable Email\/Password/);
+  assert.match(getAccountAuthErrorMessage({code: "auth/email-already-in-use"}, "signup"), /Sign in instead/);
+  assert.match(getAccountAuthErrorMessage({code: "auth/email-not-verified", message: "Verify your email first."}, "signin"), /Verify your email first/);
+  assert.match(getAccountAuthErrorMessage({code: "auth/invalid-login-credentials"}, "signin"), /email or password is incorrect/i);
+});
+
+test("account dialog validates, creates email accounts, and signs in existing accounts separately", async () => {
   const uiStart = mainScript.indexOf("      function initializeCloudHistoryUi()");
   const uiEnd = mainScript.indexOf("      function toggleHistory()", uiStart);
   assert.ok(uiStart >= 0 && uiEnd > uiStart, "cloud-history UI initializer should exist");
@@ -966,6 +1023,16 @@ test("Google create-account button creates new users and still signs in existing
     if (!elements.has(id)) {
       elements.set(id, {
         listeners: {},
+        classList: {
+          add(name) { this[name] = true; },
+          remove(name) { this[name] = false; },
+          toggle(name, active) { this[name] = active; }
+        },
+        value: "",
+        open: false,
+        focus() {},
+        showModal() { this.open = true; },
+        close() { this.open = false; },
         addEventListener(type, listener) {
           this.listeners[type] = listener;
         }
@@ -975,8 +1042,22 @@ test("Google create-account button creates new users and still signs in existing
   };
   const statuses = [];
   let createdAccountEvents = 0;
-  const signInResults = [{isNewUser: true}, {isNewUser: false}];
-  let signInCalls = 0;
+  const accountCalls = [];
+  const cloudClient = {
+    async createAccount(email, password) {
+      accountCalls.push(["createAccount", email, password]);
+    },
+    async signInWithPassword(email, password) {
+      accountCalls.push(["signInWithPassword", email, password]);
+    },
+    async sendPasswordReset(email) {
+      accountCalls.push(["sendPasswordReset", email]);
+    },
+    async signIn() {
+      accountCalls.push(["googleSignIn", arguments[0]]);
+      return {isNewUser: false};
+    }
+  };
   const initializeCloudHistoryUi = new Function(
     "byId",
     "window",
@@ -993,6 +1074,7 @@ test("Google create-account button creates new users and still signs in existing
     "startMembershipCheckout",
     "cancelUpcomingMembership",
     "openMembershipPortal",
+    "getAccountAuthErrorMessage",
     "let cloudHistorySigningIn = false;\n" +
       mainScript.slice(uiStart, uiEnd) +
       "return initializeCloudHistoryUi;"
@@ -1006,7 +1088,7 @@ test("Google create-account button creates new users and still signs in existing
       head: {appendChild() {}}
     },
     () => {},
-    {signIn: async () => signInResults[signInCalls++]},
+    cloudClient,
     () => {},
     (message) => statuses.push(message),
     () => { createdAccountEvents++; },
@@ -1016,17 +1098,46 @@ test("Google create-account button creates new users and still signs in existing
     () => {},
     () => {},
     () => {},
-    () => {}
+    () => {},
+    (error) => error.message
   );
   initializeCloudHistoryUi();
 
-  await byId("googleHistorySignUp").listeners.click();
-  await byId("googleHistorySignIn").listeners.click();
+  byId("googleHistorySignUp").listeners.click();
+  assert.equal(byId("accountAuthTitle").textContent, "Create an account");
+  assert.equal(byId("accountAuthConfirmPasswordLabel").hidden, false);
+  byId("accountAuthEmail").value = "new@example.com";
+  byId("accountAuthPassword").value = "secret123";
+  byId("accountAuthConfirmPassword").value = "different";
+  await byId("accountAuthForm").listeners.submit({preventDefault() {}});
+  assert.equal(accountCalls.length, 0, "mismatched confirmation must not create an account");
+  assert.match(byId("accountAuthStatus").textContent, /passwords do not match/i);
 
-  assert.equal(signInCalls, 2);
-  assert.equal(createdAccountEvents, 1, "only a newly created Google account is tracked as a signup");
-  assert.ok(statuses.includes("Your Google account was created. Syncing hand history…"));
-  assert.ok(statuses.includes("Opening Google sign-in…"));
+  byId("accountAuthConfirmPassword").value = "secret123";
+  await byId("accountAuthForm").listeners.submit({preventDefault() {}});
+  assert.deepEqual(accountCalls[0], ["createAccount", "new@example.com", "secret123"]);
+  assert.equal(createdAccountEvents, 1);
+  assert.equal(byId("accountAuthTitle").textContent, "Sign in");
+  assert.equal(byId("accountAuthConfirmPasswordLabel").hidden, true);
+  assert.match(byId("accountAuthStatus").textContent, /check your email/i);
+
+  byId("accountAuthModeSwitch").listeners.click();
+  byId("accountAuthGoogle").listeners.click();
+  await new Promise(setImmediate);
+  assert.deepEqual(accountCalls[1], ["googleSignIn", {allowCreate: true}]);
+
+  byId("googleHistorySignIn").listeners.click();
+  assert.equal(byId("accountAuthTitle").textContent, "Sign in");
+  byId("accountAuthGoogle").listeners.click();
+  await new Promise(setImmediate);
+  assert.deepEqual(accountCalls[2], ["googleSignIn", {allowCreate: false}]);
+  byId("googleHistorySignIn").listeners.click();
+  byId("accountAuthEmail").value = "existing@example.com";
+  byId("accountAuthPassword").value = "existing-secret";
+  await byId("accountAuthForm").listeners.submit({preventDefault() {}});
+  assert.deepEqual(accountCalls[3], ["signInWithPassword", "existing@example.com", "existing-secret"]);
+  assert.equal(byId("accountAuthDialog").open, false);
+  assert.ok(statuses.includes("Signed in. Syncing hand history…"));
 });
 
 test("membership status refresh updates account controls after the server response", async () => {
@@ -1144,7 +1255,7 @@ test("free test access hides payment consent and offers a direct route to the ad
   assert.equal(elements.membershipMonthlyPlan.hidden, true);
 });
 
-test("signed-out membership view exposes plan choices and directs users to Google sign-in", async () => {
+test("signed-out membership view exposes plans and directs users to account sign-in", async () => {
   const start = mainScript.indexOf("      async function refreshMembershipStatus()");
   const end = mainScript.indexOf("      async function startTrialMembershipCheckout()", start);
   assert.ok(start >= 0 && end > start, "membership status updater should exist");
@@ -1185,7 +1296,7 @@ test("signed-out membership view exposes plan choices and directs users to Googl
   assert.equal(elements.startTrialMembership.hidden, false);
   assert.equal(elements.upgradeMembership.hidden, false);
   assert.equal(elements.cancelUpcomingMembership.hidden, true);
-  assert.match(elements.membershipStatus.textContent, /Google sign-in is unavailable/);
+  assert.match(elements.membershipStatus.textContent, /Firebase sign-in is unavailable/);
   assert.equal(elements.membershipPricingDetails.hidden, false);
   assert.equal(elements.membershipTrialPlan.hidden, false);
   assert.equal(elements.membershipMonthlyPlan.hidden, false);
@@ -1387,8 +1498,9 @@ const strategy = new Function(
   "localStorage",
   "practiceReviewIntervalsDays",
   "practiceRetryDelayMinutes",
+  "minimumPracticeWager",
   mainScript.slice(strategyStart, strategyEnd) + "return { handTotal, getAdvisorInputPrompt, calculateExposure, progressionUnits, fictionalWagerOutcomeHistory, handOutcomeQuarterKellyFraction, smoothOutcomeCounts, summarizeWagerOutcomes, calculateOutcomePatternModel, calculateSuggestedWager, classifyHistoryDecision, summarizeDecisionPatterns, historyPracticeScenarios, practiceAnswerKind, practiceScenarioKey, readLearningProgress, updateLearningProgress, practiceReviewScenarios };"
-)(["unknown", "allowed", "not-allowed"], parseRank, "test-learning-progress", 250, 3, learningStorage, [1, 3, 7, 14], 10);
+)(["unknown", "allowed", "not-allowed"], parseRank, "test-learning-progress", 250, 3, learningStorage, [1, 3, 7, 14], 10, 0.1);
 const {
   handTotal,
   getAdvisorInputPrompt,
@@ -3163,6 +3275,35 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
   assert.equal(baseline.baseUnit, 10);
   assert.equal(baseline.strategyReason, "practice-baseline");
 
+  const belowMinimum = calculateSuggestedWager({
+    enabled: true,
+    balance: 9.99,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: [],
+    action: "HIT"
+  });
+  assert.equal(belowMinimum.amount, 0);
+  assert.equal(belowMinimum.reason, "below-minimum");
+  assert.equal(calculateSuggestedWager({
+    enabled: true,
+    balance: 10,
+    sessionLossLimit: null,
+    sessionNet: 0,
+    recentHands: [],
+    action: "HIT"
+  }).amount, 0.1);
+  const minimumExceedsRiskBudget = calculateSuggestedWager({
+    enabled: true,
+    balance: 10,
+    sessionLossLimit: 0.1,
+    sessionNet: 0,
+    recentHands: [],
+    action: "HIT"
+  });
+  assert.equal(minimumExceedsRiskBudget.amount, 0,
+    "a minimum stake above the remaining risk budget is not rounded up");
+
   const safeMode = calculateSuggestedWager({
     enabled: true, balance: 1000, sessionLossLimit: null, sessionNet: 0,
     recentHands: [], action: "HIT", riskMode: "safe"
@@ -3594,6 +3735,11 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
 });
 
 test("wager suggestion stays prominent and compact with a history-based estimate", () => {
+  assert.match(html, /id="handWager"[^>]*min="0\.10"/);
+  assert.match(html, /id="plannedWager"[^>]*min="0\.10"/);
+  assert.match(html, /id="sessionTurnover"[^>]*min="0\.10"/);
+  assert.match(mainScript, /below-minimum/);
+  assert.match(mainScript, /The minimum you specified \(\$0\.10\) is modeled as 0\.10 fake credits/);
   assert.match(html, /id="wagerRiskMode"/);
   assert.match(html, /Safe · small, tightly capped stakes/);
   assert.match(html, /Chill · balanced fictional sizing/);
@@ -3637,6 +3783,29 @@ test("wager suggestion stays prominent and compact with a history-based estimate
   assert.match(mainScript, /handOutcomeQuarterKellyFraction/);
   assert.match(mainScript, /Auto uses conservative empirical return evidence/);
   assert.match(mainScript, /negative-edge-no-wager/);
+});
+
+test("manual wager exposure checks respect the specified ten-cent minimum", () => {
+  const start = mainScript.indexOf("      function checkWagerExposure()");
+  const end = mainScript.indexOf("      function readSessionLog()", start);
+  assert.ok(start >= 0 && end > start, "wager exposure checker should exist");
+  const elements = {
+    availableBalance: {value: "10"},
+    plannedWager: {value: "0.09"},
+    wagerExposureResult: {textContent: ""}
+  };
+  const checkWagerExposure = new Function(
+    "byId",
+    "calculateExposure",
+    "minimumPracticeWager",
+    mainScript.slice(start, end) + "return checkWagerExposure;"
+  )((id) => elements[id], calculateExposure, 0.1);
+  checkWagerExposure();
+  assert.match(elements.wagerExposureResult.textContent, /minimum modeled wager is 0\.10 fake credits/);
+
+  elements.plannedWager.value = "0.1";
+  checkWagerExposure();
+  assert.match(elements.wagerExposureResult.textContent, /1\.00% of the entered balance/);
 });
 
 test("recent-20 outcome model estimates streak contexts with shrinkage and chronological validation", () => {
@@ -4075,6 +4244,7 @@ test("hand-result form saves advisor-entered player cards and preserves dealer c
     "renderSuggestedWager",
     "suggestedWagerAction",
     "shareCompletedHand",
+    "minimumPracticeWager",
     "let activeConsultationId = 'consult-1';\n" +
       mainScript.slice(saveResultStart, clearHistoryStart) + "return saveHandResult;"
   )(
@@ -4092,7 +4262,8 @@ test("hand-result form saves advisor-entered player cards and preserves dealer c
     () => {},
     () => {},
     "STAND",
-    (entry) => sharedHands.push(entry.consultationId)
+    (entry) => sharedHands.push(entry.consultationId),
+    0.1
   );
 
   elements.handResult.value = "";
@@ -4124,7 +4295,7 @@ test("hand-result form saves entered player cards and leaves unknown dealer card
     playerCards: {value: "10, 7"},
     hitCards: {value: ""},
     splitHandCards: {value: ""},
-    handWager: {value: "5"},
+    handWager: {value: "0.05"},
     handNetResult: {value: ""},
     playerAction: {value: ""},
     handResultMessage: {textContent: ""},
@@ -4175,6 +4346,7 @@ test("hand-result form saves entered player cards and leaves unknown dealer card
     "renderSuggestedWager",
     "suggestedWagerAction",
     "shareCompletedHand",
+    "minimumPracticeWager",
     "let activeConsultationId = 'consult-2';\n" +
       mainScript.slice(saveResultStart, clearHistoryStart) + "return saveHandResult;"
   )(
@@ -4192,16 +4364,22 @@ test("hand-result form saves entered player cards and leaves unknown dealer card
     () => {},
     () => {},
     "STAND",
-    (entry) => sharedHands.push(entry.consultationId)
+    (entry) => sharedHands.push(entry.consultationId),
+    0.1
   );
 
+  saveHandResult();
+  assert.equal(entries[0].result, null);
+  assert.match(elements.handResultMessage.textContent, /at least 0\.10 fake credits/);
+
+  elements.handWager.value = "0.10";
   saveHandResult();
   assert.equal(entries[0].result, "win");
   assert.deepEqual(entries[0].finalPlayerCards, ["10", "7"]);
   assert.equal(entries[0].finalDealerCards, null);
-  assert.equal(entries[0].netResult, 5);
+  assert.equal(entries[0].netResult, 0.1);
   assert.equal(entries[0].netResultExact, false);
-  assert.equal(JSON.parse(localStorage.balanceValue).amount, 105);
+  assert.equal(JSON.parse(localStorage.balanceValue).amount, 100.1);
   assert.equal(elements.handResultEntry.hidden, true);
   assert.deepEqual(sharedHands, ["consult-2"]);
 });
@@ -4253,6 +4431,7 @@ test("hand-result form saves an outcome without inventing an unknown wager or ne
     "renderSuggestedWager",
     "suggestedWagerAction",
     "shareCompletedHand",
+    "minimumPracticeWager",
     "let activeConsultationId = 'consult-no-stake';\n" +
       mainScript.slice(saveResultStart, clearHistoryStart) + "return saveHandResult;"
   )(
@@ -4270,7 +4449,8 @@ test("hand-result form saves an outcome without inventing an unknown wager or ne
     () => {},
     () => {},
     "STAND",
-    () => {}
+    () => {},
+    0.1
   );
 
   saveHandResult();
@@ -4673,7 +4853,10 @@ function createBillingTestStore(initialMembership) {
             return {uid: "test-user", email: "tester@example.test", firebase: {sign_in_provider: "google.com"}};
           }
           if (token === "other-token") {
-            return {uid: "google-user", firebase: {sign_in_provider: "password"}};
+            return {uid: "google-user", email_verified: false, firebase: {sign_in_provider: "password"}};
+          }
+          if (token === "email-token") {
+            return {uid: "email-user", email_verified: true, firebase: {sign_in_provider: "password"}};
           }
           throw new Error("invalid token");
         }
@@ -4787,7 +4970,7 @@ test("code redemption unlocks hand advice without Google sign-in", async (testCo
   assert.equal(chat.status, 401, "the redemption code does not grant optional AI-chat access");
 });
 
-test("membership checkout requires explicit consent and validates the Google account", async (testContext) => {
+test("membership checkout requires explicit consent and validates eligible accounts", async (testContext) => {
   const mock = createBillingTestStore();
   const server = createGeminiServer({
     apiKey: "",
@@ -4807,6 +4990,9 @@ test("membership checkout requires explicit consent and validates the Google acc
 
   assert.equal((await request("/api/billing/status", null)).status, 401);
   assert.equal((await request("/api/billing/trial", "other-token", {acceptRecurringBilling: true})).status, 403);
+  const emailStatus = await request("/api/billing/status", "email-token");
+  assert.equal(emailStatus.status, 200, "verified email/password accounts may use membership endpoints");
+  assert.equal((await emailStatus.json()).tier, "free");
   assert.equal((await request("/api/billing/trial", "google-token")).status, 400);
   assert.equal(mock.checkoutCalls.length, 0);
 
@@ -4818,7 +5004,8 @@ test("membership checkout requires explicit consent and validates the Google acc
   assert.equal("custom_text" in mock.checkoutCalls[0], false);
   assert.equal(mock.checkoutCalls[0].payment_intent_data.setup_future_usage, "off_session");
   assert.equal(mock.checkoutCalls[0].metadata.termsVersion, "membership-terms-v1");
-  assert.equal(mock.documentPaths.every((path) => path === "users/google-user/membership/current"), true);
+  assert.ok(mock.documentPaths.includes("users/google-user/membership/current"));
+  assert.ok(mock.documentPaths.includes("users/email-user/membership/current"));
 
   const monthlyResponse = await request("/api/billing/checkout", "google-token", {acceptRecurringBilling: true});
   assert.equal(monthlyResponse.status, 200);

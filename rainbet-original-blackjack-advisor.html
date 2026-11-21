@@ -1807,6 +1807,21 @@
         linear-gradient(145deg, var(--panel-raised), var(--panel));
       box-shadow: 0 28px 90px rgba(0, 0, 0, .48);
     }
+    .account-auth-dialog { width: min(460px, calc(100vw - 28px)); }
+    .account-auth-dialog .settings-heading { align-items: flex-start; margin-bottom: 14px; }
+    .account-auth-dialog .settings-heading-copy h2 { margin: 0 0 5px; }
+    .account-auth-dialog .settings-heading-copy p { margin: 0; }
+    .account-auth-form { display: grid; gap: 12px; }
+    .account-auth-form label { margin: 0; }
+    .account-auth-form input { margin-top: 5px; }
+    .account-auth-form button, .account-auth-dialog > button { width: 100%; margin: 10px 0 0; }
+    .account-auth-dialog #accountAuthStatus { min-height: 1.4em; margin: 10px 0; }
+    .account-auth-dialog #accountAuthStatus.error { color: #ffbf9b; }
+    .account-auth-alternative {
+      margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); text-align: center;
+    }
+    .account-auth-alternative p { margin: 0; }
+    .account-auth-alternative button { margin-top: 10px; }
     .membership-dialog .settings-heading {
       align-items: flex-start;
       gap: 18px;
@@ -2035,8 +2050,8 @@
         </div>
         <div class="header-account-controls">
           <div class="header-actions-row">
-            <button type="button" id="googleHistorySignIn" disabled>Sign in with Google</button>
-            <button type="button" class="secondary" id="googleHistorySignUp" disabled>Sign up with Google</button>
+            <button type="button" id="googleHistorySignIn" disabled>Sign in</button>
+            <button type="button" class="secondary" id="googleHistorySignUp" disabled>Sign up</button>
             <span id="googleHistoryHeaderAccount" hidden></span>
             <button type="button" class="secondary" id="openSettings" aria-haspopup="dialog" aria-controls="settingsDialog">⚙ Settings</button>
           </div>
@@ -2101,7 +2116,7 @@
           <p class="advisor-live-hand" id="handSummary"></p>
           <p class="fine advisor-status" id="advisorStatus" aria-live="polite"></p>
           <div class="membership-required-prompt" id="membershipRequiredPrompt" hidden>
-            <p><strong>Unlock the full advisor:</strong> redeem a code in Settings for hand recommendations without signing in, or sign in with Google and choose $1 for 7 days followed by $10/month, or start $10/month now.</p>
+            <p><strong>Unlock the full advisor:</strong> redeem a code in Settings for hand recommendations without signing in, or create an account or sign in and choose $1 for 7 days followed by $10/month, or start $10/month now.</p>
             <button type="button" id="openMembershipFromPrompt">View membership options</button>
           </div>
           <details class="advisor-explanation" hidden>
@@ -2160,7 +2175,7 @@
           </section>
           <div class="advisor-wager-controls">
             <label for="handWager">Fake-credit pre-deal wager for this hand
-              <input id="handWager" type="number" min="0.01" step="0.01" inputmode="decimal" aria-describedby="advisorWagerNote" placeholder="0.00">
+              <input id="handWager" type="number" min="0.10" step="0.01" inputmode="decimal" aria-describedby="advisorWagerNote" placeholder="0.00">
             </label>
             <label for="wagerStrategy">Practice sizing
               <select id="wagerStrategy">
@@ -2731,7 +2746,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           <input id="availableBalance" type="number" min="0.01" step="0.01" placeholder="Enter balance">
         </label>
         <label>Amount you are considering risking
-          <input id="plannedWager" type="number" min="0.01" step="0.01" placeholder="Include doubles and splits">
+          <input id="plannedWager" type="number" min="0.10" step="0.01" placeholder="Include doubles and splits">
         </label>
       </div>
       <button id="checkWagerExposure" type="button">Check chosen amount</button>
@@ -2746,7 +2761,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           <input id="sessionLossLimit" type="number" min="0.01" step="0.01" placeholder="Set before play">
         </label>
         <label>Total fake-credit turnover for resolved round
-          <input id="sessionTurnover" type="number" min="0.01" step="0.01" placeholder="e.g. 10.00">
+          <input id="sessionTurnover" type="number" min="0.10" step="0.01" placeholder="e.g. 10.00">
         </label>
         <label>Net result in fake credits
           <input id="sessionNet" type="number" step="0.01" placeholder="e.g. -2.50 or 3.00">
@@ -2824,16 +2839,16 @@ node .\rainbet-gemini-server.cjs</code></pre>
       <button type="button" class="secondary" data-close-dialog="privacyPolicyDialog" aria-label="Close privacy policy">×</button>
     </div>
     <p class="fine">Last updated: November 18, 2026. Operator: an individual in Montreal, Quebec, Canada. Privacy contact: <a href="mailto:guicepig@gmail.com">guicepig@gmail.com</a>.</p>
-    <p>This policy explains what this blackjack strategy reference handles. It does not connect to Rainbet or read Rainbet account data. Optional membership features are processed through Stripe and require a Google sign-in.</p>
+    <p>This policy explains what this blackjack strategy reference handles. It does not connect to Rainbet or read Rainbet account data. Optional membership features are processed through Stripe and require a verified email/password or Google account.</p>
     <h3>Information and purposes</h3>
     <ul class="fine">
       <li><strong>On this device:</strong> if you use the advisor, hand records (cards, moves, outcomes, and wager amounts), practice progress, fictional-credit balance, strategy preference, and session-limit entries may be saved in this browser's local storage. The current-hand model recommends moves; saved history is processed separately for the fictional pre-deal stake. The recent-20 pattern can affect Auto sizing only after at least 30 chronological predictions and a positive approximate paired Brier-improvement lower bound. Otherwise conservative recorded-return evidence or the practice baseline remains. The stake is independent of the current cards and future action. First-action probabilities provide context, and Split is one round-level result. History-based W/L sizing assumes even-money returns unless exact net returns are recorded. These estimates are experimental, uncertain, and not real-money advice. Your balance, practice progress, preferences, and session-limit entries stay in this browser. Hand history also stays here until you sign in and sync it. Local data remain until you clear them in the app or browser.</li>
       <li><strong>Advisor requests:</strong> the card ranks you enter, dealer upcard, and selected rule toggles are sent to the operator's server to calculate each recommendation or practice answer. Requests are processed in memory and are not saved to the app's history or logged by the application. Hand history, outcomes, wager amounts, and balance are not sent for recommendations. The hosting provider may process your IP address and technical request metadata.</li>
       <li><strong>Code redemption:</strong> a shared access code is sent to the operator's server for verification. After redemption, the code is saved in this browser and sent with hand-recommendation requests; it is not linked to a Google account. Anyone with the shared code can use hand recommendations. Removing access in Settings deletes the code from this browser.</li>
-      <li><strong>Optional Google account and history sync:</strong> when Firebase is configured, signing in with Google automatically merges this browser's saved hand history with your account and saves later hand-history changes there. Firestore history can contain the hand and wager details listed above; your private display name is also saved to your account. Your balance, practice progress, and other preferences remain in this browser. You can sign out or clear synced history in the app; contact the privacy email to request deletion of the Firebase account or assistance with other requests. Firebase must have Google sign-in enabled, the site's domain authorized, and the app's Firestore rules published for these features to work.</li>
+      <li><strong>Optional account and history sync:</strong> when Firebase is configured, signing in with Google or a verified email/password account automatically merges this browser's saved hand history with your account and saves later hand-history changes there. Firestore history can contain the hand and wager details listed above; your private display name is also saved to your account. Your balance, practice progress, and other preferences remain in this browser. You can sign out or clear synced history in the app; contact the privacy email to request deletion of the Firebase account or assistance with other requests. Firebase must have the relevant sign-in provider enabled, the site's domain authorized, and the app's Firestore rules published for these features to work.</li>
       <li><strong>Optional shared hand statistics:</strong> off by default and separate from analytics and Google history sync. Only future completed hands are eligible after you opt in; existing local history is not uploaded. The app sends card ranks, dealer upcard, table-rule settings, the recommendation, your recorded first action, and categorical win/loss/push result. Wager, balance, net result, final-card sequence, Google email, and Google account ID are excluded. Firebase Authentication issues a separate anonymous identifier; the server uses it to verify the submission and create a keyed duplicate-prevention receipt, then stores only aggregate scenario/action/outcome counts. Raw hand records and the anonymous identifier are not stored in those aggregates. Because aggregate counts cannot be tied back to an individual, a contribution cannot be removed individually after aggregation. You may withdraw consent to stop future sharing. Shared aggregates are for quality checks only; they are not used in the local history-based wager sizing or move advice.</li>
       <li><strong>Optional Gemini helper:</strong> it is offline by default. If you explicitly send a question to Gemini, that question and fixed public app/Rainbet reference notes are sent to Google's Gemini service to answer it. The current hand, saved history, balance, wager, Google identity, and chat transcript are not sent by this feature. Google's own terms and retention practices apply to that request.</li>
-      <li><strong>Optional analytics:</strong> analytics are off until a visitor opts in. If the operator configures a Plausible Analytics site for this exact HTTPS domain, accepting permits aggregate page-visit, referral, device/browser, approximate location, and visit-duration measurement. A limited event may count a newly created Google history-sync account. Analytics receives no cards, hands, balance, wagers, results, email address, or membership/payment data. When configured, a separate owner-only dashboard can query aggregate traffic counts from Plausible; the dashboard does not expose visitor identities. This integration uses no analytics cookies and is not active until a domain is configured and consent is given. Rejecting or later disabling analytics does not affect the advisor.</li>
+      <li><strong>Optional analytics:</strong> analytics are off until a visitor opts in. If the operator configures a Plausible Analytics site for this exact HTTPS domain, accepting permits aggregate page-visit, referral, device/browser, approximate location, and visit-duration measurement. A limited event may count a newly created history-sync account. Analytics receives no cards, hands, balance, wagers, results, email address, or membership/payment data. When configured, a separate owner-only dashboard can query aggregate traffic counts from Plausible; the dashboard does not expose visitor identities. This integration uses no analytics cookies and is not active until a domain is configured and consent is given. Rejecting or later disabling analytics does not affect the advisor.</li>
       <li><strong>Hosting and external services:</strong> a web host may process technical request and security logs when the site is published. Firebase, Google, and Plausible may process information on servers outside Quebec under their own terms. External links have separate privacy practices.</li>
     </ul>
     <h3>Choices, retention, and requests</h3>
@@ -2848,10 +2863,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
         <li><strong>Sur votre appareil :</strong> si vous utilisez le conseiller, l’historique des mains (cartes, décisions, résultats et mises), la progression d’exercice, le solde en crédits fictifs, le choix de progression et les limites de session peuvent être enregistrés dans le stockage local du navigateur. La carte estime les fréquences globales de gains, pertes et égalités à partir d’au plus 100 mains fictives récentes et affiche un intervalle de Wilson à 95 % pour le taux de gains parmi les résultats sans égalité. Le mode Auto conserve une mise de pratique de 1 % sauf si au moins 30 mises enregistrées comprennent un résultat net exact saisi explicitement et étayent un rendement historique positif ou négatif selon une borne unilatérale approximative à 95 %; il applique alors un quart de Kelly empirique plafonné pour un rendement positif, ou recommande de ne pas miser pour un rendement négatif. L’échantillon peut regrouper différentes mains ou stratégies et ne prédit pas l’avenir. Les limites du solde, de perte de session et d’exposition s’appliquent. Le résumé, le solde et l’historique ne sont pas transmis au serveur de l’application. Ils y restent jusqu’à leur suppression dans l’application ou le navigateur. Un ancien montant de solde est conservé tel quel en crédits fictifs; aucune conversion de devise n’est effectuée.</li>
         <li><strong>Requêtes au conseiller :</strong> les rangs de cartes saisis, la carte visible du croupier et les règles choisies sont transmis au serveur de l’exploitant pour calculer chaque recommandation ou réponse d’exercice. Les requêtes sont traitées en mémoire et ne sont ni enregistrées dans l’historique de l’application ni consignées par celle-ci. L’historique des mains, les résultats, les mises et le solde ne sont pas transmis pour les recommandations. L’hébergeur peut traiter l’adresse IP et les métadonnées techniques des requêtes.</li>
         <li><strong>Utilisation d’un code :</strong> un code d’accès partagé est transmis au serveur de l’exploitant pour vérification. Après son activation, le code est enregistré dans ce navigateur et transmis avec les demandes de recommandation; il n’est pas associé à un compte Google. Toute personne ayant le code partagé peut utiliser les recommandations. La suppression de l’accès dans les paramètres efface le code de ce navigateur.</li>
-        <li><strong>Compte Google et synchronisation facultative de l’historique :</strong> lorsque Firebase est configuré, la connexion avec Google fusionne automatiquement l’historique de mains de ce navigateur avec votre compte et y enregistre ensuite les changements. L’historique Firestore peut contenir les détails de mains et de mises indiqués ci-dessus; votre nom d’affichage privé est aussi enregistré dans votre compte. Le solde, la progression d’exercice et les autres préférences restent dans ce navigateur. Vous pouvez vous déconnecter ou effacer l’historique synchronisé dans l’application. Pour que ces fonctions marchent, Google doit être activé dans Firebase, le domaine du site doit être autorisé et les règles Firestore doivent être publiées.</li>
+        <li><strong>Compte facultatif et synchronisation de l’historique :</strong> lorsque Firebase est configuré, la connexion avec Google ou un compte courriel/mot de passe vérifié fusionne automatiquement l’historique de mains de ce navigateur avec votre compte et y enregistre ensuite les changements. L’historique Firestore peut contenir les détails de mains et de mises indiqués ci-dessus; votre nom d’affichage privé est aussi enregistré dans votre compte. Le solde, la progression d’exercice et les autres préférences restent dans ce navigateur. Vous pouvez vous déconnecter ou effacer l’historique synchronisé dans l’application. Pour que ces fonctions marchent, le fournisseur de connexion choisi doit être activé dans Firebase, le domaine du site doit être autorisé et les règles Firestore doivent être publiées.</li>
         <li><strong>Statistiques partagées facultatives sur les mains :</strong> désactivées par défaut et distinctes de l’analyse d’audience et de la synchronisation Google. Seules les mains futures terminées sont admissibles après votre consentement; l’historique local existant n’est pas téléversé. L’application transmet les rangs, la carte visible du croupier, les règles, le conseil, votre première décision enregistrée et le résultat catégoriel (gain/perte/égalité). La mise, le solde, le résultat net, la séquence finale de cartes, le courriel Google et l’identifiant du compte Google sont exclus. Firebase Authentication crée un identifiant anonyme distinct; le serveur s’en sert pour vérifier la transmission et créer un reçu pseudonyme contre les doublons, puis ne conserve que des comptes agrégés par scénario/décision/résultat. Les mains brutes et l’identifiant anonyme ne sont pas conservés dans ces agrégats. Comme les comptes agrégés ne peuvent être reliés à une personne, une contribution ne peut pas être supprimée individuellement après son agrégation. Vous pouvez retirer votre consentement pour arrêter les contributions futures. Ces statistiques servent aux vérifications de qualité et à l’amélioration des tests, pas à prédire ni à modifier les conseils selon les résultats.</li>
         <li><strong>Assistant Gemini facultatif :</strong> il est hors ligne par défaut. Si vous envoyez explicitement une question à Gemini, cette question et des notes publiques fixes sur l’application/Rainbet sont transmises au service Gemini de Google. La main actuelle, l’historique, le solde, la mise, l’identité Google et la transcription ne sont pas transmis par cette fonction. Les conditions et pratiques de conservation de Google s’appliquent.</li>
-        <li><strong>Mesure d’audience facultative :</strong> elle est désactivée jusqu’à votre consentement. Si l’exploitant configure Plausible Analytics pour ce domaine HTTPS et que vous l’acceptez, des mesures agrégées de visites, références, appareil/navigateur, emplacement approximatif et durée de visite peuvent être effectuées. Un événement limité peut compter la création d’un compte Google pour la synchronisation. Aucune carte, main, solde, mise, résultat, adresse courriel ni donnée d’abonnement/paiement n’est transmise. Cette intégration n’utilise pas de témoins d’analyse et ne fonctionne pas avant la configuration du domaine et votre consentement. Le refus ou le retrait du consentement ne change pas les fonctions du conseiller.</li>
+        <li><strong>Mesure d’audience facultative :</strong> elle est désactivée jusqu’à votre consentement. Si l’exploitant configure Plausible Analytics pour ce domaine HTTPS et que vous l’acceptez, des mesures agrégées de visites, références, appareil/navigateur, emplacement approximatif et durée de visite peuvent être effectuées. Un événement limité peut compter la création d’un compte de synchronisation d’historique. Aucune carte, main, solde, mise, résultat, adresse courriel ni donnée d’abonnement/paiement n’est transmise. Cette intégration n’utilise pas de témoins d’analyse et ne fonctionne pas avant la configuration du domaine et votre consentement. Le refus ou le retrait du consentement ne change pas les fonctions du conseiller.</li>
         <li><strong>Hébergement et services externes :</strong> l’hébergeur peut traiter des journaux techniques et de sécurité lorsque le site est publié. Firebase, Google et Plausible peuvent traiter des renseignements sur des serveurs à l’extérieur du Québec selon leurs propres conditions. Les liens externes ont leurs propres pratiques de confidentialité.</li>
       </ul>
       <h3>Choix, conservation et demandes</h3>
@@ -2914,7 +2929,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
     <div class="settings-heading">
       <div class="settings-heading-copy">
         <h2 id="settingsTitle">Settings</h2>
-        <p class="fine" id="settingsPanelDescription">Manage your Google sign-in, private username, and saved history sync.</p>
+        <p class="fine" id="settingsPanelDescription">Manage your account, private username, and saved history sync.</p>
       </div>
       <button type="button" class="secondary" id="closeSettings" aria-label="Close settings">×</button>
     </div>
@@ -2931,21 +2946,21 @@ node .\rainbet-gemini-server.cjs</code></pre>
       <div class="settings-content">
         <section class="settings-panel" id="settingsAccount" data-settings-panel="account" aria-labelledby="cloud-history-title">
           <section class="settings-section helper-setup">
-            <h3 id="cloud-history-title">Google account and history sync</h3>
+            <h3 id="cloud-history-title">Account and history sync</h3>
             <p class="fine">Your account can restore synced hand history across devices and keep a private display name. After sign-in, this browser's history is merged automatically and future history changes sync to your account. Synced records can include cards, actions, outcomes, wager amounts, and net results. Do not enter Rainbet passwords or other account credentials here.</p>
-            <p class="fine">New accounts are created when you continue with Google for the first time. Existing Google accounts can sign in; no separate website password is needed.</p>
+            <p class="fine">Sign up creates a new account with your email and a password, then asks you to verify your email. Sign in checks the email and password for an existing account. You can also use Google; Google may create an account automatically the first time it is used.</p>
             <p id="googleHistoryAccount" class="fine" aria-live="polite"></p>
-            <button type="button" id="googleHistorySettingsSignIn" hidden disabled>Sign in with Google</button>
-            <button type="button" class="secondary" id="googleHistorySettingsSignUp" hidden disabled>Sign up with Google</button>
+            <button type="button" id="googleHistorySettingsSignIn" hidden disabled>Sign in</button>
+            <button type="button" class="secondary" id="googleHistorySettingsSignUp" hidden disabled>Sign up</button>
             <label class="settings-username-field" for="profileNameInput">Private username / display name
               <input id="profileNameInput" type="text" maxlength="20" pattern="[A-Za-z0-9_-]{3,20}" autocomplete="nickname" autocapitalize="none" spellcheck="false" aria-describedby="profileNameHelp profileNameStatus" placeholder="3–20 letters, numbers, _ or -">
             </label>
-            <p class="fine" id="profileNameHelp">Private to your account and not globally unique or shown to other users. Saved to your Google account; it does not change your Google profile name.</p>
+            <p class="fine" id="profileNameHelp">Private to your account and not globally unique or shown to other users. Saved to your Firebase account profile.</p>
             <div class="settings-controls">
               <button type="button" id="saveProfileName" disabled>Save username</button>
               <button type="button" class="secondary" id="clearProfileName" disabled>Clear username</button>
             </div>
-            <p id="profileNameStatus" class="fine settings-settings-status" aria-live="polite">Sign in with Google to set a private username.</p>
+            <p id="profileNameStatus" class="fine settings-settings-status" aria-live="polite">Sign in to set a private username.</p>
             <div class="settings-controls">
               <button type="button" class="secondary" id="googleHistorySync" hidden disabled>Sync history</button>
               <button type="button" class="secondary" id="googleHistorySignOut" hidden>Sign out</button>
@@ -2955,20 +2970,20 @@ node .\rainbet-gemini-server.cjs</code></pre>
               <summary>One-time Firebase setup</summary>
               <ol class="fine">
                 <li>Create a Firebase project and register a web app. Put its public web-app config in <code>rainbet-firebase-config.js</code>; Firebase web config is public, but never put service-account keys or other secrets in this file.</li>
-                <li>Enable Google and Anonymous under Firebase Authentication sign-in providers, create a Cloud Firestore database, add the exact production website domain under Authentication → Settings → Authorized domains, add <code>https://rainbet-advisor.onrender.com</code> to the Google OAuth client's authorized JavaScript origins, and add <code>https://rainbet-advisor.onrender.com/__/auth/handler</code> to its authorized redirect URIs. The server transparently proxies Firebase's <code>/__/auth/</code> helpers; a 302 redirect is not supported. Publish this site's Firestore rules. Google sign-in uses a redirect on mobile and when a browser blocks its popup.</li>
+                <li>In Firebase Console → Authentication → Sign-in method, enable Email/Password, Google, and Anonymous. Create a Cloud Firestore database. Add the exact production website domain under Authentication → Settings → Authorized domains. Add <code>https://rainbet-advisor.onrender.com</code> to the Google OAuth client's authorized JavaScript origins, and add <code>https://rainbet-advisor.onrender.com/__/auth/handler</code> to its authorized redirect URIs. The server proxies Firebase's <code>/__/auth/</code> helpers. Publish this site's Firestore rules. Email/password accounts must verify their address before using paid membership. Google sign-in uses a redirect on mobile and when a browser blocks its popup.</li>
                 <li>Publish this app's <code>firestore.rules</code> in the Firestore Rules console before allowing sign-in. These rules restrict each account to its own history and private username.</li>
                 <li>For shared statistics, set <code>FIREBASE_SERVICE_ACCOUNT_JSON</code> as a private server environment variable. Never put a service-account key in this app or its public Firebase config.</li>
                 <li>For local testing, open the advisor through <code>http://127.0.0.1:4173</code>. A public site must be served over HTTPS and have its production domain authorized in Firebase.</li>
               </ol>
-              <p class="fine">If Google sign-in fails, check that Google is enabled and the exact site domain is authorized; the error below identifies common Firebase setup problems. Review Google's and Firebase's privacy and retention terms. Sign-in itself does not include paid membership. Shared hand statistics remain off until a visitor separately opts in.</p>
-              <p class="fine"><a href="https://firebase.google.com/docs/auth/web/google-signin" target="_blank" rel="noopener noreferrer">Firebase Google sign-in guide</a> · <a href="https://firebase.google.com/docs/firestore/security/get-started" target="_blank" rel="noopener noreferrer">Firestore Security Rules guide</a></p>
+              <p class="fine">Email/password accounts must verify their email before using paid membership. If sign-up, sign-in, or verification fails, check that Email/Password is enabled, Firebase's email templates are configured, and the exact site domain is authorized. Review Google's and Firebase's privacy and retention terms. Signing in does not itself include paid membership. Shared hand statistics remain off until a visitor separately opts in.</p>
+              <p class="fine"><a href="https://firebase.google.com/docs/auth/web/password-auth" target="_blank" rel="noopener noreferrer">Firebase email/password guide</a> · <a href="https://firebase.google.com/docs/auth/web/google-signin" target="_blank" rel="noopener noreferrer">Firebase Google sign-in guide</a> · <a href="https://firebase.google.com/docs/firestore/security/get-started" target="_blank" rel="noopener noreferrer">Firestore Security Rules guide</a></p>
             </details>
           </section>
         </section>
         <section class="settings-panel" id="settingsSponsor" data-settings-panel="sponsor" aria-labelledby="sponsorSettingsTitle" hidden>
           <section class="settings-section">
             <h3 id="sponsorSettingsTitle">Code redemption</h3>
-            <p class="fine">Redeem a code to use hand recommendations without Google sign-in. Access is saved only in this browser; account sync, billing, and the AI assistant are separate.</p>
+            <p class="fine">Redeem a code to use hand recommendations without signing in. Access is saved only in this browser; account sync, billing, and the AI assistant are separate.</p>
             <form id="sponsorCodeForm">
               <label for="sponsorCodeInput">Redemption code
                 <input id="sponsorCodeInput" type="text" maxlength="64" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="sponsorCodeStatus" placeholder="Enter your code">
@@ -3064,12 +3079,42 @@ node .\rainbet-gemini-server.cjs</code></pre>
     </div>
   </dialog>
 
+  <dialog class="settings-dialog account-auth-dialog" id="accountAuthDialog" aria-labelledby="accountAuthTitle">
+    <div class="settings-heading">
+      <div class="settings-heading-copy">
+        <h2 id="accountAuthTitle">Create an account</h2>
+        <p class="fine" id="accountAuthDescription">Create a new account with your email and a password.</p>
+      </div>
+      <button type="button" class="secondary" id="closeAccountAuthDialog" aria-label="Close account form">×</button>
+    </div>
+    <form id="accountAuthForm" class="account-auth-form">
+      <label for="accountAuthEmail">Email
+        <input id="accountAuthEmail" type="email" autocomplete="email" maxlength="254" required>
+      </label>
+      <label for="accountAuthPassword">Password
+        <input id="accountAuthPassword" type="password" autocomplete="new-password" minlength="6" maxlength="4096" required>
+      </label>
+      <label for="accountAuthConfirmPassword" id="accountAuthConfirmPasswordLabel">Confirm password
+        <input id="accountAuthConfirmPassword" type="password" autocomplete="new-password" minlength="6" maxlength="4096" required>
+      </label>
+      <button type="submit" id="accountAuthSubmit">Create account</button>
+    </form>
+    <button type="button" class="secondary" id="accountAuthPasswordReset" hidden>Forgot password?</button>
+    <p id="accountAuthStatus" class="fine" role="status" aria-live="polite"></p>
+    <div class="account-auth-alternative">
+      <p class="fine">Or continue with Google. Google may create an account automatically if you have not used it here before.</p>
+      <button type="button" class="secondary" id="accountAuthGoogle">Continue with Google</button>
+    </div>
+    <p class="fine" id="accountAuthModePrompt">Already have an account?</p>
+    <button type="button" class="secondary" id="accountAuthModeSwitch">Sign in instead</button>
+  </dialog>
+
   <dialog class="settings-dialog membership-dialog" id="membershipDialog" aria-labelledby="membershipDialogTitle">
     <div class="settings-heading">
       <div class="settings-heading-copy">
         <p class="membership-eyebrow">MEMBERSHIP</p>
         <h2 id="membershipDialogTitle">Membership</h2>
-        <p class="fine" id="membershipInstructions">Review the plans below. Google sign-in is free and does not start a subscription; billing begins only after you confirm checkout.</p>
+        <p class="fine" id="membershipInstructions">Create an account or sign in with email and password, or continue with Google. Signing in is free; billing begins only after you confirm checkout.</p>
       </div>
       <button type="button" class="secondary" id="closeMembershipDialog" aria-label="Close membership options">×</button>
     </div>
@@ -3082,7 +3127,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         </div>
         <span class="membership-secure-label">Stripe checkout</span>
       </div>
-      <button type="button" id="membershipSignIn" hidden disabled>Continue with Google</button>
+      <button type="button" id="membershipSignIn" hidden disabled>Sign in or create account</button>
       <div class="membership-pricing" id="membershipPricingDetails">
         <p class="membership-pricing-note">All prices in USD. Taxes may apply.</p>
         <div class="membership-plan-grid" id="membershipPlanGrid">
@@ -3106,7 +3151,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           <span>I agree to recurring billing for the plan I select. The $1 intro renews at $10 USD/month after 7 days unless canceled before renewal; the monthly plan renews at $10 USD/month until canceled.</span>
         </label>
       </div>
-      <p id="membershipStatus" class="fine" aria-live="polite">Continue with Google, accept the billing terms, and choose a plan.</p>
+      <p id="membershipStatus" class="fine" aria-live="polite">Sign in or create an account, accept the billing terms, and choose a plan.</p>
       <div class="settings-controls">
         <button type="button" class="secondary" id="cancelUpcomingMembership" hidden disabled>Cancel upcoming $10/month renewal</button>
         <button type="button" class="secondary" id="manageMembership" hidden disabled>Manage subscription</button>
@@ -3217,6 +3262,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       const historyKey = "rainbet-original-blackjack-history-v1";
       const premiumQuickstartKey = "rainbet-advisor-premium-quickstart-v1";
       const manualBalanceKey = "rainbet-advisor-manual-balance-v1";
+      const minimumPracticeWager = 0.1;
       const wagerCapConsentKey = "rainbet-advisor-fictional-progression-enabled-v1";
       const trainingContributionConsentKey = "rainbet-shared-training-consent-v1";
       const themePreferenceKey = "rainbet-advisor-theme-v1";
@@ -5841,11 +5887,11 @@ node .\rainbet-gemini-server.cjs</code></pre>
             ? "negative-edge"
             : strategyMode === "auto" && historyHasNoPositiveEdge
               ? "history-model-negative-edge"
-            : amount < 0.01
-              ? "below-cent"
+            : amount < minimumPracticeWager
+              ? "below-minimum"
               : "ready";
         return {
-          amount: amount >= 0.01 && !blockedByBudget && reason !== "negative-edge" ? amount : 0,
+          amount: amount >= minimumPracticeWager && !blockedByBudget && reason !== "negative-edge" ? amount : 0,
           reason,
           strategy: selection.strategy,
           strategyReason: selection.reason,
@@ -5931,7 +5977,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           try {
             authorization = "Bearer " + await cloudHistoryClient.getBillingIdToken();
           } catch {
-            throw new Error("Sign in with Google to continue. Signing in does not charge you; if membership is required, review the plan and billing terms before checkout.");
+            throw new Error("Sign in to continue. Signing in does not charge you; if membership is required, review the plan and billing terms before checkout.");
           }
         }
         const headers = {"Content-Type": "application/json"};
@@ -6215,10 +6261,11 @@ node .\rainbet-gemini-server.cjs</code></pre>
           const errorMessage = requestStarted
             ? advisorRequestErrorMessage(error, window.location.protocol)
             : error.message;
-          if (/Sign in with Google/i.test(errorMessage)) {
+          const accountSignInRequired = /Sign in to continue|Sign in with Google|Sign in with a Google or verified email/i.test(errorMessage);
+          if (accountSignInRequired) {
             byId("action").textContent = "SIGN IN";
             if (byId("primaryMove")) byId("primaryMove").textContent = "SIGN IN";
-            byId("handSummary").textContent = "Google sign-in required";
+            byId("handSummary").textContent = "Account sign-in required";
           }
           byId("reason").textContent = errorMessage;
           byId("advisorStatus").textContent = errorMessage;
@@ -6226,10 +6273,12 @@ node .\rainbet-gemini-server.cjs</code></pre>
           if (byId("membershipRequiredPrompt")) {
             byId("membershipRequiredPrompt").hidden = error.status !== 402;
           }
-          if ([401, 402, 403].includes(error.status) || /Sign in with Google/i.test(errorMessage)) {
+          if ([401, 402, 403].includes(error.status) || accountSignInRequired) {
             byId("openMembership").click();
           }
-          byId("handSummary").textContent = requestStarted ? "Hand advice requires the private advisor service." : "";
+          byId("handSummary").textContent = accountSignInRequired
+            ? "Account sign-in required"
+            : requestStarted ? "Hand advice requires the private advisor service." : "";
           return null;
         } finally {
           if (requestVersion === strategyRequestState.version) strategyRequestState.controller = null;
@@ -6392,7 +6441,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         amountDisplay.textContent = "—";
         message.classList.remove("error");
         byId("advisorWagerNote").textContent =
-          "Fictional pre-deal stake. Set it before entering the next practice hand; it is not connected to Rainbet. Saved outcomes and, after chronological validation, the recent-20 W/P/L pattern inform this amount. Current cards and future actions affect move advice, not stake sizing.";
+          "Fictional pre-deal stake, not connected to Rainbet. The minimum you specified ($0.10) is modeled as 0.10 fake credits. If the risk cap cannot support that amount, the suggestion stays at zero rather than rounding up. Saved outcomes and, after chronological validation, the recent-20 W/P/L pattern inform sizing.";
         let recentHands;
         let outcomes;
         try {
@@ -6470,9 +6519,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
             message.textContent = "The fictional-credit balance is zero; no amount is available.";
             return;
           }
-          if (cap.reason === "below-cent") {
+          if (cap.reason === "below-minimum") {
             amountDisplay.textContent = formatManualBalance(0);
-            message.textContent = "The calculated practice amount is below 0.01 fake credits.";
+            message.textContent = "The calculated practice amount is below 0.10 fake credits, the minimum wager you specified. It is not rounded up beyond the practice risk cap.";
             return;
           }
           if (cap.reason === "risk-budget-limited") {
@@ -6981,7 +7030,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         const settingsTargets = Array.from(dialog.querySelectorAll("[data-settings-target]"));
         const settingsPanels = Array.from(dialog.querySelectorAll("[data-settings-panel]"));
         const settingsDescriptions = {
-          account: "Manage your Google sign-in, private username, and saved history sync.",
+          account: "Manage your account, private username, and saved history sync.",
           sponsor: "Redeem or remove a code for hand recommendations in this browser.",
           appearance: "Choose colors and layout preferences for this browser.",
           interface: "Customize visible navigation shortcuts for this browser.",
@@ -7134,7 +7183,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           cloudProfileName = savedName || "";
           byId("profileNameInput").value = cloudProfileName;
           setProfileNameStatus(cloudProfileName
-            ? "Private username saved to your Google account."
+            ? "Private username saved to your account."
             : "Choose a private username for your account.", false);
         } catch (error) {
           if (cloudHistoryUser && cloudHistoryUser.uid === userId && requestVersion === cloudProfileRequestVersion) {
@@ -7156,7 +7205,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("profileNameInput").focus();
           return;
         }
-        if (clearName && !window.confirm("Clear your private username from your Google account?")) return;
+        if (clearName && !window.confirm("Clear your private username from your account?")) return;
         const userId = cloudHistoryUser.uid;
         const saveVersion = ++cloudProfileSaveVersion;
         cloudProfileSaving = true;
@@ -7171,7 +7220,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           if (!cloudHistoryUser || cloudHistoryUser.uid !== userId) return;
           cloudProfileName = name;
           byId("profileNameInput").value = name;
-          setProfileNameStatus(clearName ? "Private username cleared." : "Private username saved to your Google account.", false);
+          setProfileNameStatus(clearName ? "Private username cleared." : "Private username saved to your account.", false);
         } catch (error) {
           if (cloudHistoryUser && cloudHistoryUser.uid === userId) {
             setProfileNameStatus("Could not save your private username: " + error.message, true);
@@ -7205,10 +7254,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
           membershipRenewalCanceled = false;
           membershipTestAccess = false;
           byId("membershipInstructions").textContent =
-            "Review the plans below. Google sign-in is free and does not start a subscription; billing begins only after you confirm checkout.";
+            "Create an account or sign in with email and password, or continue with Google. Signing in is free; billing begins only after you confirm checkout.";
           byId("membershipStatus").textContent = cloudHistoryClient
-            ? "Continue with Google below to unlock secure checkout."
-            : "Google sign-in is unavailable, so checkout cannot be started right now.";
+            ? "Create an account or sign in below to unlock secure checkout."
+            : "Firebase sign-in is unavailable, so checkout cannot be started right now.";
           byId("startTrialMembership").hidden = false;
           byId("upgradeMembership").hidden = false;
           byId("cancelUpcomingMembership").hidden = true;
@@ -7227,7 +7276,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("manageMembership").disabled = true;
         try {
           byId("membershipInstructions").textContent =
-            "Review the plans below. Google sign-in is free and does not start a subscription; billing begins only after you confirm checkout.";
+            "Create an account or sign in with email and password, or continue with Google. Signing in is free; billing begins only after you confirm checkout.";
           const idToken = await cloudHistoryClient.getBillingIdToken();
           const response = await fetch("/api/billing/status", {
             method: "POST",
@@ -7397,11 +7446,11 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("googleHistorySignOut").hidden = !signedIn;
         byId("googleHistorySignOut").disabled = cloudHistorySyncing || cloudProfileSaving;
         byId("googleHistoryAccount").textContent = signedIn
-          ? "Signed in as " + (cloudHistoryUser.email || cloudHistoryUser.displayName || "Google account") + "."
+          ? "Signed in as " + (cloudHistoryUser.email || cloudHistoryUser.displayName || "account") + "."
           : "";
         byId("googleHistoryHeaderAccount").hidden = !signedIn;
         byId("googleHistoryHeaderAccount").textContent = signedIn
-          ? cloudProfileName || cloudHistoryUser.displayName || cloudHistoryUser.email || "Google account"
+          ? cloudProfileName || cloudHistoryUser.displayName || cloudHistoryUser.email || "Account"
           : "";
         byId("profileNameInput").disabled = !signedIn || !cloudHistoryClient || cloudProfileLoading || cloudProfileSaving;
         byId("saveProfileName").disabled = !signedIn || !cloudHistoryClient || cloudProfileLoading || cloudProfileSaving;
@@ -7435,7 +7484,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
             refreshHistory();
           }
           if (cloudHistoryUser && cloudHistoryUser.uid === userId) {
-            setCloudHistoryStatus("History synced to your Google account.", false);
+            setCloudHistoryStatus("History synced to your account.", false);
           }
         }).catch((error) => {
           if (cloudHistoryUser && cloudHistoryUser.uid === userId) {
@@ -7483,8 +7532,12 @@ node .\rainbet-gemini-server.cjs</code></pre>
       function handleCloudHistoryEvent(event) {
         const detail = event.detail || {};
         if (detail.status === "auth-error") {
-          setCloudHistoryStatus("Google sign-in could not be completed: " +
-            getGoogleSignInErrorMessage({code: detail.code, message: detail.message}), true);
+          const message = getGoogleSignInErrorMessage({code: detail.code, message: detail.message});
+          setCloudHistoryStatus("Google sign-in could not be completed: " + message, true);
+          if (byId("accountAuthDialog") && byId("accountAuthDialog").open) {
+            byId("accountAuthStatus").textContent = message;
+            byId("accountAuthStatus").classList.add("error");
+          }
           return;
         }
         if (detail.status === "sign-in-result") {
@@ -7530,7 +7583,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           clearSiteStatsResults();
           updateCloudHistoryControls();
           void refreshMembershipStatus();
-          setProfileNameStatus("Sign in with Google to set a private username.", false);
+          setProfileNameStatus("Sign in to set a private username.", false);
           setCloudHistoryStatus("Signed out. Hand history remains saved in this browser.", false);
           return;
         }
@@ -7555,7 +7608,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
           "auth/popup-closed-by-user": "Google sign-in was closed before it finished. Try again when ready.",
           "auth/network-request-failed": "A network or browser privacy setting blocked Firebase Authentication. Check your connection and allow this site's authentication requests.",
           "auth/invalid-api-key": "Firebase rejected this site's public API key. Check the web-app configuration in rainbet-firebase-config.js.",
-          "auth/configuration-not-found": "Firebase Authentication is not enabled for this project. Enable it in Firebase Console."
+          "auth/configuration-not-found": "Firebase Authentication is not enabled for this project. Enable it in Firebase Console.",
+          "auth/google-account-not-found": "No account is registered for this Google sign-in yet. Switch to Sign up to create one.",
+          "auth/google-account-cleanup-failed": "Google sign-in could not remove the new unregistered Firebase account. Contact support before trying again."
         };
         if (messages[code]) return messages[code];
         return error && typeof error.message === "string" && error.message
@@ -7563,31 +7618,174 @@ node .\rainbet-gemini-server.cjs</code></pre>
           : "Check the Firebase Google provider and authorized-domain settings, then try again.";
       }
 
+      function getAccountAuthErrorMessage(error, mode) {
+        const messages = {
+          "auth/operation-not-allowed": mode === "signup"
+            ? "Email/password accounts are disabled. Enable Email/Password in Firebase Console → Authentication → Sign-in method."
+            : "Email/password sign-in is disabled. Enable Email/Password in Firebase Console → Authentication → Sign-in method.",
+          "auth/invalid-email": "Enter a valid email address.",
+          "auth/weak-password": "Choose a password with at least 6 characters.",
+          "auth/email-already-in-use": "An account already uses this email. Switch to Sign in instead.",
+          "auth/invalid-credential": "The email or password is incorrect, or the account needs email verification.",
+          "auth/invalid-login-credentials": "The email or password is incorrect, or the account needs email verification.",
+          "auth/wrong-password": "The email or password is incorrect.",
+          "auth/user-not-found": "The email or password is incorrect.",
+          "auth/email-not-verified": error && typeof error.message === "string"
+            ? error.message
+            : "Verify your email address, then sign in again.",
+          "auth/verification-email-failed": error && typeof error.message === "string"
+            ? error.message
+            : "Firebase could not send a verification link. Check Firebase's email configuration and try again.",
+          "auth/too-many-requests": "Too many attempts. Wait a little while, then try again.",
+          "auth/network-request-failed": "A network or browser privacy setting blocked Firebase Authentication. Check your connection and try again."
+        };
+        if (error && messages[error.code]) return messages[error.code];
+        return error && typeof error.message === "string" && error.message
+          ? error.message
+          : "Check Firebase Authentication provider settings, then try again.";
+      }
+
       function initializeCloudHistoryUi() {
         window.addEventListener("rainbet-cloud-history", handleCloudHistoryEvent);
+        const authDialog = byId("accountAuthDialog");
+        let accountAuthMode = "signup";
+        const setAccountAuthMode = (mode) => {
+          if (mode !== "signup" && mode !== "signin") throw new Error("Unknown account form mode: " + mode);
+          accountAuthMode = mode;
+          const isSignUp = mode === "signup";
+          byId("accountAuthTitle").textContent = isSignUp ? "Create an account" : "Sign in";
+          byId("accountAuthDescription").textContent = isSignUp
+            ? "Create a new account with your email and a password. We will email you a verification link."
+            : "Sign in to your existing account with your email and password.";
+          byId("accountAuthPassword").autocomplete = isSignUp ? "new-password" : "current-password";
+          byId("accountAuthConfirmPasswordLabel").hidden = !isSignUp;
+          byId("accountAuthConfirmPassword").disabled = !isSignUp;
+          byId("accountAuthSubmit").textContent = isSignUp ? "Create account" : "Sign in";
+          byId("accountAuthPasswordReset").hidden = isSignUp;
+          byId("accountAuthModePrompt").textContent = isSignUp
+            ? "Already have an account?"
+            : "Need to create an account?";
+          byId("accountAuthModeSwitch").textContent = isSignUp ? "Sign in instead" : "Create an account";
+          byId("accountAuthStatus").textContent = "";
+          byId("accountAuthStatus").classList.remove("error");
+        };
+        const openAccountAuth = (mode) => {
+          setAccountAuthMode(mode);
+          if (!cloudHistoryClient) {
+            byId("accountAuthStatus").textContent = "Firebase Authentication is not ready. Check the connection and reload the page.";
+            byId("accountAuthStatus").classList.add("error");
+          }
+          if (!authDialog.open) authDialog.showModal();
+          byId("accountAuthEmail").focus({preventScroll: true});
+        };
+        byId("googleHistorySignIn").addEventListener("click", () => openAccountAuth("signin"));
+        byId("googleHistorySignUp").addEventListener("click", () => openAccountAuth("signup"));
+        byId("googleHistorySettingsSignIn").addEventListener("click", () => openAccountAuth("signin"));
+        byId("googleHistorySettingsSignUp").addEventListener("click", () => openAccountAuth("signup"));
+        byId("accountAuthModeSwitch").addEventListener("click", () => {
+          setAccountAuthMode(accountAuthMode === "signup" ? "signin" : "signup");
+        });
+        byId("closeAccountAuthDialog").addEventListener("click", () => authDialog.close());
+        authDialog.addEventListener("click", (event) => {
+          if (event.target === authDialog) authDialog.close();
+        });
+        byId("accountAuthForm").addEventListener("submit", async (event) => {
+          event.preventDefault();
+          if (!cloudHistoryClient || cloudHistorySigningIn) return;
+          const email = byId("accountAuthEmail").value.trim();
+          const password = byId("accountAuthPassword").value;
+          if (accountAuthMode === "signup" && password !== byId("accountAuthConfirmPassword").value) {
+            byId("accountAuthStatus").textContent = "The passwords do not match.";
+            byId("accountAuthStatus").classList.add("error");
+            byId("accountAuthConfirmPassword").focus({preventScroll: true});
+            return;
+          }
+          cloudHistorySigningIn = true;
+          updateCloudHistoryControls();
+          byId("accountAuthSubmit").disabled = true;
+          byId("accountAuthGoogle").disabled = true;
+          byId("accountAuthPasswordReset").disabled = true;
+          byId("accountAuthStatus").textContent = accountAuthMode === "signup"
+            ? "Creating your account and sending a verification email…"
+            : "Signing in…";
+          byId("accountAuthStatus").classList.remove("error");
+          try {
+            if (accountAuthMode === "signup") {
+              await cloudHistoryClient.createAccount(email, password);
+              trackHistoryAccountCreated();
+              byId("accountAuthPassword").value = "";
+              byId("accountAuthConfirmPassword").value = "";
+              setAccountAuthMode("signin");
+              byId("accountAuthStatus").textContent =
+                "Account created. Check your email and follow the verification link, then sign in here.";
+            } else {
+              await cloudHistoryClient.signInWithPassword(email, password);
+              setCloudHistoryStatus("Signed in. Syncing hand history…", false);
+              authDialog.close();
+            }
+          } catch (error) {
+            byId("accountAuthStatus").textContent = getAccountAuthErrorMessage(error, accountAuthMode);
+            byId("accountAuthStatus").classList.add("error");
+          } finally {
+            cloudHistorySigningIn = false;
+            byId("accountAuthSubmit").disabled = false;
+            byId("accountAuthGoogle").disabled = false;
+            byId("accountAuthPasswordReset").disabled = false;
+            updateCloudHistoryControls();
+          }
+        });
+        byId("accountAuthPasswordReset").addEventListener("click", async () => {
+          if (!cloudHistoryClient) return;
+          const email = byId("accountAuthEmail").value.trim();
+          if (!email) {
+            byId("accountAuthEmail").focus({preventScroll: true});
+            byId("accountAuthStatus").textContent = "Enter your email address first.";
+            byId("accountAuthStatus").classList.add("error");
+            return;
+          }
+          byId("accountAuthPasswordReset").disabled = true;
+          try {
+            await cloudHistoryClient.sendPasswordReset(email);
+            byId("accountAuthStatus").textContent =
+              "If an account exists for that email, Firebase has sent a password-reset link.";
+            byId("accountAuthStatus").classList.remove("error");
+          } catch (error) {
+            byId("accountAuthStatus").textContent = getAccountAuthErrorMessage(error, "signin");
+            byId("accountAuthStatus").classList.add("error");
+          } finally {
+            byId("accountAuthPasswordReset").disabled = false;
+          }
+        });
         const signInWithGoogle = async () => {
           if (!cloudHistoryClient) return;
           cloudHistorySigningIn = true;
           updateCloudHistoryControls();
           setCloudHistoryStatus("Opening Google sign-in…", false);
           try {
-            const result = await cloudHistoryClient.signIn();
+            const result = await cloudHistoryClient.signIn({allowCreate: accountAuthMode === "signup"});
+            if (result && result.isNewUser && accountAuthMode !== "signup") {
+              throw Object.assign(new Error(
+                "No account is registered for this Google sign-in yet. Switch to Sign up to create one."
+              ), {code: "auth/google-account-not-found"});
+            }
             if (result && result.isNewUser) {
               trackHistoryAccountCreated();
-              setCloudHistoryStatus("Your Google account was created. Syncing hand history…", false);
+              setCloudHistoryStatus("Your Google account was created and signed in. Syncing hand history…", false);
             }
+            if (authDialog.open) authDialog.close();
+            return true;
           } catch (error) {
             setCloudHistoryStatus("Google sign-in failed: " + getGoogleSignInErrorMessage(error), true);
+            byId("accountAuthStatus").textContent = getGoogleSignInErrorMessage(error);
+            byId("accountAuthStatus").classList.add("error");
+            return false;
           } finally {
             cloudHistorySigningIn = false;
             updateCloudHistoryControls();
           }
         };
-        byId("googleHistorySignIn").addEventListener("click", () => signInWithGoogle());
-        byId("googleHistorySignUp").addEventListener("click", () => signInWithGoogle());
-        byId("googleHistorySettingsSignIn").addEventListener("click", () => signInWithGoogle());
-        byId("googleHistorySettingsSignUp").addEventListener("click", () => signInWithGoogle());
-        byId("membershipSignIn").addEventListener("click", () => signInWithGoogle());
+        byId("accountAuthGoogle").addEventListener("click", () => void signInWithGoogle());
+        byId("membershipSignIn").addEventListener("click", () => openAccountAuth("signin"));
         byId("saveProfileName").addEventListener("click", () => void savePrivateProfileName(false));
         byId("clearProfileName").addEventListener("click", () => void savePrivateProfileName(true));
         byId("googleHistorySync").addEventListener("click", () => syncCloudHistory());
@@ -7607,7 +7805,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           }
         });
         if (window.location.protocol === "file:") {
-          setCloudHistoryStatus("Open the advisor through the local Node server to use Google sign-in. Local history still works in this file.", true);
+          setCloudHistoryStatus("Open the advisor through the local Node server to use Firebase sign-in. Local history still works in this file.", true);
           return;
         }
         const moduleScript = document.createElement("script");
@@ -8704,8 +8902,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           }
           const wagerInput = byId("handWager").value.trim();
           const wagerAmount = wagerInput === "" ? null : Number(wagerInput);
-          if (wagerAmount !== null && (!Number.isFinite(wagerAmount) || wagerAmount <= 0)) {
-            throw new Error("Enter a wager amount greater than zero or leave it blank.");
+          if (wagerAmount !== null && (!Number.isFinite(wagerAmount) || wagerAmount < minimumPracticeWager)) {
+            throw new Error("Enter at least 0.10 fake credits, matching the $0.10 minimum wager you specified, or leave it blank.");
           }
           const netInput = byId("handNetResult").value.trim();
           const netResult = netInput === "" ? null : Number(netInput);
@@ -8759,7 +8957,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("playerAction").value = "";
           byId("handResultEntry").hidden = true;
           byId("handResultMessage").textContent = "Hand result saved locally with the cards already entered in the advisor. " +
-            balanceMessage + " If signed in, history will sync to your Google account. Results do not change recommendations.";
+            balanceMessage + " If signed in, history will sync to your account. Results do not change recommendations.";
           refreshHistory();
           renderSuggestedWager();
           decide();
@@ -9032,6 +9230,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
         try {
           const balance = Number(byId("availableBalance").value);
           const plannedWager = Number(byId("plannedWager").value);
+          if (plannedWager < minimumPracticeWager) {
+            throw new Error("The minimum modeled wager is 0.10 fake credits, matching the $0.10 minimum you specified.");
+          }
           const exposure = calculateExposure(balance, plannedWager);
           byId("wagerExposureResult").textContent = exposure.exceedsBalance
             ? "Your chosen amount is " + exposure.percentOfBalance.toFixed(2) +
@@ -9150,8 +9351,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("sessionGuardStatus").textContent = "Enter a positive loss limit before recording a round.";
           return;
         }
-        if (!turnoverValue || !Number.isFinite(turnover) || turnover <= 0 || !netValue || !Number.isFinite(net)) {
-          byId("sessionGuardStatus").textContent = "Enter positive turnover and a finite net result for the resolved round.";
+        if (!turnoverValue || !Number.isFinite(turnover) || turnover < minimumPracticeWager || !netValue || !Number.isFinite(net)) {
+          byId("sessionGuardStatus").textContent = "Enter turnover of at least 0.10 fake credits and a finite net result for the resolved round.";
           return;
         }
         if (!saveSessionLossLimit()) return;
