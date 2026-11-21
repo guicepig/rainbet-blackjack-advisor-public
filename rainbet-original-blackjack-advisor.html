@@ -2613,13 +2613,13 @@ node .\rainbet-gemini-server.cjs</code></pre>
     <div class="settings-heading">
       <div class="settings-heading-copy">
         <h2 id="membershipDialogTitle">Membership</h2>
-        <p class="fine">Choose a plan to unlock membership features. Signing in alone does not grant paid access; sign-in is required before secure checkout.</p>
+        <p class="fine" id="membershipInstructions">Sign in with Google to continue. If membership is required, review the prices and renewal terms below. Signing in is free and does not start a subscription.</p>
       </div>
       <button type="button" class="secondary" id="closeMembershipDialog" aria-label="Close membership options">×</button>
     </div>
     <div class="membership-options-card" id="membershipOptions" tabindex="-1" aria-labelledby="membershipOptionsTitle">
       <h3 id="membershipOptionsTitle">Choose a plan</h3>
-      <p class="fine">Intro offer: $1 USD today for 7 days, then $10 USD/month starting on day 8 unless canceled before renewal. Monthly plan: $10 USD now, renewing monthly until canceled. Taxes may apply.</p>
+      <p class="fine" id="membershipPricingDetails">Intro offer: $1 USD today for 7 days, then $10 USD/month starting on day 8 unless canceled before renewal. Monthly plan: $10 USD now, renewing monthly until canceled. Taxes may apply.</p>
       <button type="button" id="membershipSignIn" hidden disabled>Continue with Google</button>
       <label class="fine" id="membershipBillingConsentLabel" for="membershipBillingConsent" hidden>
         <input id="membershipBillingConsent" type="checkbox">
@@ -2631,6 +2631,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         <button type="button" id="upgradeMembership" hidden disabled>Upgrade for $10/month</button>
         <button type="button" class="secondary" id="cancelUpcomingMembership" hidden disabled>Cancel upcoming $10/month renewal</button>
         <button type="button" class="secondary" id="manageMembership" hidden disabled>Manage subscription</button>
+        <button type="button" class="secondary" id="continueWithTestAccess" hidden>Continue to advisor</button>
       </div>
     </div>
   </dialog>
@@ -2767,6 +2768,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       let membershipSubscriptionStatus = "inactive";
       let membershipTrialAvailable = true;
       let membershipRenewalCanceled = false;
+      let membershipTestAccess = false;
       let membershipLoading = false;
       let cloudProfileName = "";
       let cloudProfileSaving = false;
@@ -5457,7 +5459,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           try {
             authorization = "Bearer " + await cloudHistoryClient.getBillingIdToken();
           } catch {
-            throw new Error("Sign in with Google first. The advisor is free for your test account; paid membership is not required.");
+            throw new Error("Sign in with Google to continue. Signing in does not charge you; if membership is required, review the plan and billing terms before checkout.");
           }
         }
         const headers = {"Content-Type": "application/json"};
@@ -5735,6 +5737,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("advisorStatus").classList.add("error");
           if (byId("membershipRequiredPrompt")) {
             byId("membershipRequiredPrompt").hidden = error.status !== 402;
+          }
+          if ([401, 402, 403].includes(error.status) || /Sign in with Google/i.test(errorMessage)) {
+            byId("openMembership").click();
           }
           byId("handSummary").textContent = requestStarted ? "Hand advice requires the private advisor service." : "";
           return null;
@@ -6444,6 +6449,11 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("openSettingsFromHistory").addEventListener("click", openSettings);
         byId("closeSettings").addEventListener("click", () => dialog.close());
         byId("closeMembershipDialog").addEventListener("click", () => membershipDialog.close());
+        byId("continueWithTestAccess").addEventListener("click", () => {
+          membershipDialog.close();
+          byId("advisorCardControls").scrollIntoView({block: "center"});
+          byId("advisorCardRank").focus({preventScroll: true});
+        });
         byId("manageAnalyticsFromSettings").addEventListener("click", () => {
           dialog.close();
           byId("manageAnalytics").click();
@@ -6624,6 +6634,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
           membershipSubscriptionStatus = "inactive";
           membershipTrialAvailable = true;
           membershipRenewalCanceled = false;
+          membershipTestAccess = false;
+          byId("membershipInstructions").textContent =
+            "Sign in with Google to continue. If membership is required, review the prices and renewal terms below. Signing in is free and does not start a subscription.";
           byId("membershipStatus").textContent = cloudHistoryClient
             ? "Continue with Google below to unlock secure checkout."
             : "Google sign-in is unavailable, so checkout cannot be started right now.";
@@ -6631,6 +6644,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("upgradeMembership").hidden = false;
           byId("cancelUpcomingMembership").hidden = true;
           byId("manageMembership").hidden = true;
+          byId("membershipPricingDetails").hidden = false;
+          byId("continueWithTestAccess").hidden = true;
           updateCloudHistoryControls();
           return;
         }
@@ -6640,6 +6655,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("upgradeMembership").disabled = true;
         byId("manageMembership").disabled = true;
         try {
+          byId("membershipInstructions").textContent =
+            "Sign in with Google to continue. If membership is required, review the prices and renewal terms below. Signing in is free and does not start a subscription.";
           const idToken = await cloudHistoryClient.getBillingIdToken();
           const response = await fetch("/api/billing/status", {
             method: "POST",
@@ -6651,8 +6668,15 @@ node .\rainbet-gemini-server.cjs</code></pre>
           membershipSubscriptionStatus = payload.subscriptionStatus;
           membershipTrialAvailable = payload.trialAvailable === true;
           membershipRenewalCanceled = payload.renewalCanceled === true;
+          membershipTestAccess = payload.testAccess === true;
+          byId("membershipPricingDetails").hidden = membershipTestAccess;
+          byId("continueWithTestAccess").hidden = !membershipTestAccess;
+          if (membershipTestAccess) {
+            byId("membershipInstructions").textContent = "This account has free test access. No payment is required.";
+            byId("membershipBillingConsent").checked = false;
+          }
           byId("membershipStatus").textContent = payload.testAccess === true
-            ? "Free test access active. No subscription or payment is required."
+            ? "Free test access is active for this account."
             : membershipTier === "paid"
             ? membershipSubscriptionStatus === "trialing"
               ? "Your $1 intro access is active until " + new Date(payload.trialExpiresAt).toLocaleDateString() +
@@ -6809,8 +6833,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("profileNameInput").disabled = !signedIn || !cloudHistoryClient || cloudProfileLoading || cloudProfileSaving;
         byId("saveProfileName").disabled = !signedIn || !cloudHistoryClient || cloudProfileLoading || cloudProfileSaving;
         byId("clearProfileName").disabled = !signedIn || !cloudHistoryClient || cloudProfileLoading || cloudProfileSaving;
-        byId("membershipBillingConsentLabel").hidden = !signedIn;
-        byId("membershipBillingConsent").disabled = !signedIn || membershipLoading;
+        byId("membershipBillingConsentLabel").hidden =
+          !signedIn || membershipTestAccess || membershipTier === "paid";
+        byId("membershipBillingConsent").disabled =
+          !signedIn || membershipLoading || membershipTestAccess || membershipTier === "paid";
         byId("startTrialMembership").disabled = !signedIn || !cloudHistoryClient ||
           membershipLoading || !byId("membershipBillingConsent").checked;
         byId("upgradeMembership").disabled = !signedIn || !cloudHistoryClient ||
@@ -6913,6 +6939,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           membershipSubscriptionStatus = "inactive";
           membershipTrialAvailable = true;
           membershipRenewalCanceled = false;
+          membershipTestAccess = false;
         }
         if (!cloudHistoryUser) {
           cloudHistoryReady = false;

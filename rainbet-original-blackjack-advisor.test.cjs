@@ -802,14 +802,17 @@ test("membership purchase is reachable from navigation and the advisor paywall",
   assert.match(html, /id="membershipRequiredPrompt" hidden/);
   assert.match(html, /id="openMembershipFromPrompt">View membership options<\/button>/);
   assert.match(html, /<dialog class="settings-dialog membership-dialog" id="membershipDialog"/);
-  assert.match(html, /signing in alone does not grant paid access/i);
+  assert.match(html, /Signing in is free and does not start a subscription/i);
+  assert.match(html, /id="membershipInstructions"/);
   assert.match(html, /id="membershipOptions" tabindex="-1"/);
+  assert.match(html, /id="membershipPricingDetails"/);
   assert.match(html, /id="membershipSignIn" hidden disabled>Continue with Google<\/button>/);
   assert.match(html, /id="membershipBillingConsentLabel"[^>]*hidden/);
+  assert.match(html, /id="continueWithTestAccess" hidden>Continue to advisor<\/button>/);
   assert.match(mainScript, /byId\("openMembership"\)\.addEventListener\("click", openMembershipOptions\)/);
   assert.match(mainScript, /byId\("openMembershipFromPrompt"\)\.addEventListener\("click", openMembershipOptions\)/);
   assert.match(mainScript, /byId\("membershipSignIn"\)\.addEventListener\("click", \(\) => signInWithGoogle\(\)\)/);
-  assert.match(mainScript, /byId\("membershipBillingConsentLabel"\)\.hidden = !signedIn/);
+  assert.match(mainScript, /byId\("membershipBillingConsentLabel"\)\.hidden =\s*!signedIn \|\| membershipTestAccess \|\| membershipTier === "paid"/);
   assert.match(mainScript, /if \(!membershipDialog\.open\) membershipDialog\.showModal\(\)/);
   assert.match(mainScript, /const destination = byId\("membershipOptions"\)/);
 });
@@ -966,11 +969,14 @@ test("membership status refresh updates account controls after the server respon
   const end = mainScript.indexOf("      async function startTrialMembershipCheckout()", start);
   assert.ok(start >= 0 && end > start, "membership status updater should exist");
   const elements = {
+    membershipInstructions: {textContent: ""},
     membershipStatus: {textContent: ""},
     startTrialMembership: {hidden: false, disabled: false},
     upgradeMembership: {hidden: false, disabled: false},
     cancelUpcomingMembership: {hidden: false, disabled: false},
-    manageMembership: {hidden: false, disabled: false}
+    manageMembership: {hidden: false, disabled: false},
+    membershipPricingDetails: {hidden: false},
+    continueWithTestAccess: {hidden: false}
   };
   const state = new Function(
     "byId",
@@ -981,11 +987,12 @@ test("membership status refresh updates account controls after the server respon
       "let membershipSubscriptionStatus = 'inactive';\n" +
       "let membershipTrialAvailable = true;\n" +
       "let membershipRenewalCanceled = false;\n" +
+      "let membershipTestAccess = false;\n" +
       "let membershipLoading = false;\n" +
       "let controlsRefreshes = 0;\n" +
       "function updateCloudHistoryControls() { controlsRefreshes++; }\n" +
       mainScript.slice(start, end) +
-      "return {refreshMembershipStatus, getState: () => ({membershipTier, membershipLoading, controlsRefreshes})};"
+      "return {refreshMembershipStatus, getState: () => ({membershipTier, membershipLoading, membershipTestAccess, controlsRefreshes})};"
   )(
     (id) => elements[id],
     {uid: "user-1"},
@@ -998,21 +1005,29 @@ test("membership status refresh updates account controls after the server respon
   await state.refreshMembershipStatus();
   assert.equal(state.getState().membershipTier, "paid");
   assert.equal(state.getState().membershipLoading, false);
+  assert.equal(state.getState().membershipTestAccess, false);
   assert.equal(state.getState().controlsRefreshes, 1);
   assert.equal(elements.manageMembership.hidden, false);
   assert.equal(elements.startTrialMembership.hidden, true);
+  assert.equal(elements.membershipPricingDetails.hidden, false);
+  assert.equal(elements.continueWithTestAccess.hidden, true);
 });
 
-test("signed-out membership view exposes plan choices and directs users to Google sign-in", async () => {
+test("free test access hides payment consent and offers a direct route to the advisor", async () => {
   const start = mainScript.indexOf("      async function refreshMembershipStatus()");
   const end = mainScript.indexOf("      async function startTrialMembershipCheckout()", start);
   assert.ok(start >= 0 && end > start, "membership status updater should exist");
   const elements = {
+    membershipInstructions: {textContent: ""},
     membershipStatus: {textContent: ""},
-    startTrialMembership: {hidden: true, disabled: false},
-    upgradeMembership: {hidden: true, disabled: false},
+    startTrialMembership: {hidden: false, disabled: false},
+    upgradeMembership: {hidden: false, disabled: false},
     cancelUpcomingMembership: {hidden: false, disabled: false},
-    manageMembership: {hidden: false, disabled: false}
+    manageMembership: {hidden: false, disabled: false},
+    membershipPricingDetails: {hidden: false},
+    membershipBillingConsent: {checked: true},
+    membershipBillingConsentLabel: {hidden: false},
+    continueWithTestAccess: {hidden: true}
   };
   const state = new Function(
     "byId",
@@ -1023,6 +1038,63 @@ test("signed-out membership view exposes plan choices and directs users to Googl
       "let membershipSubscriptionStatus = 'inactive';\n" +
       "let membershipTrialAvailable = true;\n" +
       "let membershipRenewalCanceled = false;\n" +
+      "let membershipTestAccess = false;\n" +
+      "let membershipLoading = false;\n" +
+      "function updateCloudHistoryControls() {\n" +
+      "  byId('membershipBillingConsentLabel').hidden = !cloudHistoryUser || membershipTestAccess || membershipTier === 'paid';\n" +
+      "}\n" +
+      mainScript.slice(start, end) +
+      "return {refreshMembershipStatus, getState: () => ({membershipTier, membershipTestAccess})};"
+  )(
+    (id) => elements[id],
+    {uid: "test-user"},
+    {getBillingIdToken: async () => "id-token"},
+    async () => ({
+      ok: true,
+      json: async () => ({
+        tier: "paid",
+        subscriptionStatus: "test",
+        trialAvailable: false,
+        testAccess: true
+      })
+    })
+  );
+  await state.refreshMembershipStatus();
+  assert.equal(state.getState().membershipTestAccess, true);
+  assert.match(elements.membershipInstructions.textContent, /No payment is required/);
+  assert.match(elements.membershipStatus.textContent, /Free test access is active/);
+  assert.equal(elements.membershipPricingDetails.hidden, true);
+  assert.equal(elements.membershipBillingConsent.checked, false);
+  assert.equal(elements.membershipBillingConsentLabel.hidden, true);
+  assert.equal(elements.continueWithTestAccess.hidden, false);
+  assert.equal(elements.startTrialMembership.hidden, true);
+  assert.equal(elements.upgradeMembership.hidden, true);
+});
+
+test("signed-out membership view exposes plan choices and directs users to Google sign-in", async () => {
+  const start = mainScript.indexOf("      async function refreshMembershipStatus()");
+  const end = mainScript.indexOf("      async function startTrialMembershipCheckout()", start);
+  assert.ok(start >= 0 && end > start, "membership status updater should exist");
+  const elements = {
+    membershipInstructions: {textContent: ""},
+    membershipStatus: {textContent: ""},
+    startTrialMembership: {hidden: true, disabled: false},
+    upgradeMembership: {hidden: true, disabled: false},
+    cancelUpcomingMembership: {hidden: false, disabled: false},
+    manageMembership: {hidden: false, disabled: false},
+    membershipPricingDetails: {hidden: true},
+    continueWithTestAccess: {hidden: false}
+  };
+  const state = new Function(
+    "byId",
+    "cloudHistoryUser",
+    "cloudHistoryClient",
+    "fetch",
+    "let membershipTier = 'free';\n" +
+      "let membershipSubscriptionStatus = 'inactive';\n" +
+      "let membershipTrialAvailable = true;\n" +
+      "let membershipRenewalCanceled = false;\n" +
+      "let membershipTestAccess = false;\n" +
       "let membershipLoading = false;\n" +
       "let controlsRefreshes = 0;\n" +
       "function updateCloudHistoryControls() { controlsRefreshes++; }\n" +
@@ -1039,6 +1111,8 @@ test("signed-out membership view exposes plan choices and directs users to Googl
   assert.equal(elements.upgradeMembership.hidden, false);
   assert.equal(elements.cancelUpcomingMembership.hidden, true);
   assert.match(elements.membershipStatus.textContent, /Google sign-in is unavailable/);
+  assert.equal(elements.membershipPricingDetails.hidden, false);
+  assert.equal(elements.continueWithTestAccess.hidden, true);
   assert.equal(state.getState().controlsRefreshes, 1);
 });
 
@@ -3657,6 +3731,7 @@ test("using the advisor automatically records the server recommendation without 
     reason: {textContent: ""},
     advisorStatus: {textContent: "", classList: {add() {}, remove() {}}},
     membershipRequiredPrompt: {hidden: true},
+    openMembership: {click() { membershipDialogOpenCalls++; }},
     decisionAnalysis: {textContent: ""},
     handSummary: {textContent: ""},
     moveActionPanel: {hidden: true, scrollIntoView() {}},
@@ -3673,6 +3748,7 @@ test("using the advisor automatically records the server recommendation without 
   const savedEntries = [];
   let recordCalls = 0;
   let refreshCalls = 0;
+  let membershipDialogOpenCalls = 0;
   const splitAvailability = [];
   let requestFailure = null;
   const localStorage = {
@@ -3810,10 +3886,21 @@ test("using the advisor automatically records the server recommendation without 
   requestFailure = Object.assign(new Error("Active membership required."), {status: 402});
   await decide(false);
   assert.equal(elements.membershipRequiredPrompt.hidden, false, "membership errors expose the direct purchase path");
+  assert.equal(membershipDialogOpenCalls, 1, "membership errors open the plan dialog immediately");
 
   requestFailure = Object.assign(new Error("Billing is temporarily unavailable."), {status: 503});
   await decide(false);
   assert.equal(elements.membershipRequiredPrompt.hidden, true, "non-membership service errors do not show purchase prompts");
+  assert.equal(membershipDialogOpenCalls, 1, "temporary billing errors do not open the membership dialog");
+
+  requestFailure = Object.assign(new Error("Sign in with Google to continue."), {status: 401});
+  await decide(false);
+  assert.equal(elements.action.textContent, "SIGN IN");
+  assert.equal(membershipDialogOpenCalls, 2, "sign-in-required responses open the dialog with the Google sign-in option");
+
+  requestFailure = Object.assign(new Error("Use a Google account with an active membership."), {status: 403});
+  await decide(false);
+  assert.equal(membershipDialogOpenCalls, 3, "account access restrictions open the membership dialog");
 });
 
 test("final player-card reader combines hit draws and the selected split hand", () => {
@@ -4598,6 +4685,7 @@ test("membership checkout requires explicit consent and validates the Google acc
   assert.equal(introResponse.status, 200);
   assert.equal((await introResponse.json()).url, "https://checkout.stripe.test/session");
   assert.equal(mock.checkoutCalls[0].mode, "payment");
+  assert.equal("payment_method_types" in mock.checkoutCalls[0], false);
   assert.equal(mock.checkoutCalls[0].payment_intent_data.setup_future_usage, "off_session");
   assert.equal(mock.checkoutCalls[0].metadata.termsVersion, "membership-terms-v1");
   assert.equal(mock.documentPaths.every((path) => path === "users/google-user/membership/current"), true);
@@ -4605,7 +4693,56 @@ test("membership checkout requires explicit consent and validates the Google acc
   const monthlyResponse = await request("/api/billing/checkout", "google-token", {acceptRecurringBilling: true});
   assert.equal(monthlyResponse.status, 200);
   assert.equal(mock.checkoutCalls[1].mode, "subscription");
+  assert.equal("payment_method_types" in mock.checkoutCalls[1], false);
   assert.equal(mock.checkoutCalls[1].line_items[0].price, "price_monthly");
+});
+
+test("Stripe checkout errors log safe diagnostics without exposing the error message", async (testContext) => {
+  const mock = createBillingTestStore();
+  mock.store.stripe.prices.retrieve = async () => {
+    throw Object.assign(new Error("sensitive Stripe response"), {
+      type: "StripeAuthenticationError",
+      code: "api_key_expired",
+      statusCode: 401,
+      requestId: "req_test_diagnostic"
+    });
+  };
+  const server = createGeminiServer({
+    apiKey: "",
+    billingStore: mock.store,
+    appPublicUrl: "https://advisor.example"
+  });
+  const origin = await listenForTest(testContext, server);
+  const originalWrite = process.stderr.write;
+  let diagnostics = "";
+  process.stderr.write = function (chunk, encoding, callback) {
+    diagnostics += Buffer.isBuffer(chunk) ? chunk.toString() : String(chunk);
+    if (typeof encoding === "function") encoding();
+    else if (typeof callback === "function") callback();
+    return true;
+  };
+
+  let response;
+  try {
+    response = await fetch(origin + "/api/billing/checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: origin,
+        Authorization: "Bearer google-token"
+      },
+      body: JSON.stringify({acceptRecurringBilling: true})
+    });
+  } finally {
+    process.stderr.write = originalWrite;
+  }
+
+  assert.equal(response.status, 502);
+  assert.deepEqual(await response.json(), {error: "Stripe could not complete this billing request."});
+  assert.match(diagnostics, /StripeAuthenticationError/);
+  assert.match(diagnostics, /api_key_expired/);
+  assert.match(diagnostics, /req_test_diagnostic/);
+  assert.doesNotMatch(diagnostics, /sensitive Stripe response/);
 });
 
 test("paid intro webhook provisions one seven-day intro and one monthly schedule", async (testContext) => {

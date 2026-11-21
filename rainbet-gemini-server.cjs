@@ -61,6 +61,26 @@ function sendJson(response, status, value) {
   response.end(JSON.stringify(value));
 }
 
+function billingErrorDiagnostics(error) {
+  const raw = error && error.raw && typeof error.raw === "object" ? error.raw : {};
+  const diagnostics = {};
+  const name = error && typeof error.name === "string" ? error.name : "";
+  const type = error && typeof error.type === "string" ? error.type :
+    typeof raw.type === "string" ? raw.type : "";
+  const code = error && typeof error.code === "string" ? error.code :
+    typeof raw.code === "string" ? raw.code : "";
+  const statusCode = error && Number.isInteger(error.statusCode) ? error.statusCode :
+    Number.isInteger(raw.statusCode) ? raw.statusCode : null;
+  const requestId = error && typeof error.requestId === "string" ? error.requestId :
+    typeof raw.requestId === "string" ? raw.requestId : "";
+  if (name) diagnostics.name = name;
+  if (type) diagnostics.type = type;
+  if (code) diagnostics.code = code;
+  if (statusCode !== null) diagnostics.statusCode = statusCode;
+  if (requestId) diagnostics.requestId = requestId;
+  return diagnostics;
+}
+
 function proxyFirebaseAuthRequest(request, response, requestPath, requestImpl) {
   const headers = {...request.headers};
   const connectionHeaders = typeof headers.connection === "string"
@@ -932,7 +952,6 @@ function createServer(options) {
             ? await billingStore.stripe.checkout.sessions.create({
                 mode: "payment",
                 customer: customerId,
-                payment_method_types: ["card"],
                 line_items: [{price: priceId, quantity: 1}],
                 payment_intent_data: {
                   setup_future_usage: "off_session",
@@ -951,7 +970,6 @@ function createServer(options) {
             : await billingStore.stripe.checkout.sessions.create({
                 mode: "subscription",
                 customer: customerId,
-                payment_method_types: ["card"],
                 line_items: [{price: priceId, quantity: 1}],
                 client_reference_id: uid,
                 metadata,
@@ -996,8 +1014,8 @@ function createServer(options) {
         });
         sendJson(response, 200, {url: portal.url});
       } catch (error) {
-        process.stderr.write("Billing request failed: " +
-          (error && typeof error.code === "string" ? error.code : "billing-error") + "\n");
+        process.stderr.write("Billing request failed for " + pathname + ": " +
+          JSON.stringify(billingErrorDiagnostics(error)) + "\n");
         sendJson(response, 502, {error: "Stripe could not complete this billing request."});
       }
       return;
