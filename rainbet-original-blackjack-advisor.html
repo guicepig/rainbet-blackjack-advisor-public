@@ -6851,7 +6851,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           if (!cloudHistoryClient) return;
           cloudHistorySigningIn = true;
           updateCloudHistoryControls();
-          setCloudHistoryStatus("Opening Google sign-in…", false);
+          setCloudHistoryStatus("Redirecting to Google sign-in… Complete the account chooser, then you will return here.", false);
           try {
             const result = await cloudHistoryClient.signIn();
             if (result && result.isNewUser) trackHistoryAccountCreated();

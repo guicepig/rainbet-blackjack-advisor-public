@@ -53,20 +53,8 @@ async function initializeCloudHistory() {
     window.rainbetCloudHistory = {
       async signIn() {
         const provider = new authSdk.GoogleAuthProvider();
-        if (shouldUseGoogleSignInRedirect()) {
-          await authSdk.signInWithRedirect(auth, provider);
-          return {redirecting: true};
-        }
-        let credential;
-        try {
-          credential = await authSdk.signInWithPopup(auth, provider);
-        } catch (error) {
-          if (!error || error.code !== "auth/popup-blocked") throw error;
-          await authSdk.signInWithRedirect(auth, provider);
-          return {redirecting: true};
-        }
-        const accountInfo = authSdk.getAdditionalUserInfo(credential);
-        return {isNewUser: Boolean(accountInfo && accountInfo.isNewUser)};
+        await authSdk.signInWithRedirect(auth, provider);
+        return {redirecting: true};
       },
       signOut() {
         return authSdk.signOut(auth);
