@@ -2453,6 +2453,10 @@ test("recommendation panel exposes visible win push and loss percentages", () =>
   assert.match(html, /id="currentHandWinChance"/);
   assert.match(html, /id="currentHandPushChance"/);
   assert.match(html, /id="currentHandLossChance"/);
+  assert.match(html, /id="moveActionPanel"[\s\S]*aria-label="Estimated outcome chances for the recommended move"/);
+  assert.match(html, /id="moveWinChance"/);
+  assert.match(html, /id="movePushChance"/);
+  assert.match(html, /id="moveLossChance"/);
   assert.match(html, /function renderCurrentHandOutcome\(result\)/);
   assert.match(html, /Estimated for " \+ actionKey\.toUpperCase\(\)/);
 });
@@ -2467,7 +2471,8 @@ test("advisor can render current-hand outcome percentages", () => {
     "outcome renderer should not be scoped inside refreshHistory");
   const ids = [
     "currentHandWinChance", "currentHandPushChance", "currentHandLossChance",
-    "currentHandOutcomeNote", "primaryWinChance", "primaryPushChance", "primaryLossChance"
+    "currentHandOutcomeNote", "primaryWinChance", "primaryPushChance", "primaryLossChance",
+    "moveWinChance", "movePushChance", "moveLossChance"
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, {textContent: "—"}]));
   const renderCurrentHandOutcome = new Function(
@@ -2490,7 +2495,20 @@ test("advisor can render current-hand outcome percentages", () => {
   assert.equal(elements.primaryWinChance.textContent, "45.0%");
   assert.equal(elements.primaryPushChance.textContent, "10.0%");
   assert.equal(elements.primaryLossChance.textContent, "45.0%");
+  assert.equal(elements.moveWinChance.textContent, "45.0%");
+  assert.equal(elements.movePushChance.textContent, "10.0%");
+  assert.equal(elements.moveLossChance.textContent, "45.0%");
   assert.match(elements.currentHandOutcomeNote.textContent, /Estimated for STAND/);
+
+  renderCurrentHandOutcome({hand: {total: 18}, action: "HIT"});
+  assert.equal(elements.moveWinChance.textContent, "—", "unavailable estimates clear prior displayed values");
+  assert.equal(elements.movePushChance.textContent, "—");
+  assert.equal(elements.moveLossChance.textContent, "—");
+
+  renderCurrentHandOutcome({hand: {total: 22}, action: "HIT"});
+  assert.equal(elements.moveWinChance.textContent, "0.0%");
+  assert.equal(elements.movePushChance.textContent, "0.0%");
+  assert.equal(elements.moveLossChance.textContent, "100.0%");
 });
 
 test("current-hand outcome distributions normalize for all supported starting hands and dealer upcards", () => {
