@@ -1758,40 +1758,40 @@
       border-color: var(--table-inset-border, rgba(219, 236, 207, .18));
       border-radius: 15px;
     }
-    .advisor-table .advisor-card-zone,
-    .advisor-table .advisor-split-presentation,
-    .advisor-table .advisor-split-hand {
-      border-color: var(--table-zone-border, rgba(220, 237, 211, .2));
-      background: var(--table-zone-bg, rgba(5, 25, 12, .18));
+    :root[data-theme="slate"] .advisor-table .advisor-card-zone,
+    :root[data-theme="slate"] .advisor-table .advisor-split-presentation,
+    :root[data-theme="slate"] .advisor-table .advisor-split-hand {
+      border-color: var(--table-zone-border);
+      background: var(--table-zone-bg);
     }
-    .advisor-table .advisor-card-zone.selected-target,
-    .advisor-table .advisor-card-zone.unlocked,
-    .advisor-table .advisor-split-hand.selected-target {
-      border-color: var(--table-zone-active-border, rgba(190, 245, 153, .85));
-      background: var(--table-zone-active-bg, rgba(26, 73, 39, .36));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--table-zone-active-border, #bff59c) 20%, transparent);
+    :root[data-theme="slate"] .advisor-table .advisor-card-zone.selected-target,
+    :root[data-theme="slate"] .advisor-table .advisor-card-zone.unlocked,
+    :root[data-theme="slate"] .advisor-table .advisor-split-hand.selected-target {
+      border-color: var(--table-zone-active-border);
+      background: var(--table-zone-active-bg);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--table-zone-active-border) 20%, transparent);
     }
-    .advisor-table .advisor-seat-title,
-    .advisor-table .advisor-card-zone-title,
-    .advisor-table .advisor-split-hand-title {
-      color: var(--table-zone-text, #e2edda);
+    :root[data-theme="slate"] .advisor-table .advisor-seat-title,
+    :root[data-theme="slate"] .advisor-table .advisor-card-zone-title,
+    :root[data-theme="slate"] .advisor-table .advisor-split-hand-title {
+      color: var(--table-zone-text);
     }
-    .advisor-table .advisor-empty-card {
-      border-color: var(--table-placeholder-border, rgba(230, 244, 224, .52));
-      background: var(--table-placeholder-bg, rgba(8, 24, 13, .2));
-      color: var(--table-placeholder-text, rgba(230, 244, 224, .76));
+    :root[data-theme="slate"] .advisor-table .advisor-empty-card {
+      border-color: var(--table-placeholder-border);
+      background: var(--table-placeholder-bg);
+      color: var(--table-placeholder-text);
     }
-    .advisor-table .advisor-zone-select {
-      border-color: var(--table-zone-border, rgba(220, 237, 211, .3));
-      background: var(--table-zone-bg, rgba(5, 25, 12, .28));
-      color: var(--table-zone-text, rgba(229, 242, 222, .82));
+    :root[data-theme="slate"] .advisor-table .advisor-zone-select {
+      border-color: var(--table-zone-border);
+      background: var(--table-zone-bg);
+      color: var(--table-zone-text);
     }
-    .advisor-table .advisor-table-divider {
-      color: var(--table-zone-text, rgba(229, 242, 222, .66));
+    :root[data-theme="slate"] .advisor-table .advisor-table-divider {
+      color: var(--table-zone-text);
     }
-    .advisor-table .advisor-table-divider::before,
-    .advisor-table .advisor-table-divider::after {
-      background-color: var(--table-inset-border, rgba(229, 242, 222, .2));
+    :root[data-theme="slate"] .advisor-table .advisor-table-divider::before,
+    :root[data-theme="slate"] .advisor-table .advisor-table-divider::after {
+      background-color: var(--table-inset-border);
     }
     .advisor-zone-select { border-radius: 8px; }
     .membership-dialog {
