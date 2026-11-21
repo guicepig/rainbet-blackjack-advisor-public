@@ -2286,26 +2286,23 @@ test("8-deck expected-value analysis compares available actions with a replaceme
     2 * (soft17.outcomeProbabilities.double.win - soft17.outcomeProbabilities.double.loss)) < 1e-12,
   "double EV reflects twice the initial wager");
 
-  const dealerTen = expectedValueActionAnalysis([card(10), card(6)], card(10), {
+  assert.equal(expectedValueActionAnalysis([card(10), card(6)], card(10), {
     doubleAllowed: true,
     afterSplit: false
-  });
-  assert.ok(dealerTen);
-  assert.ok(["win", "push", "loss"].every((key) =>
-    Number.isFinite(dealerTen.outcomeProbabilities.hit[key])));
+  }), null);
 });
 
 test("recommendation panel exposes visible win push and loss percentages", () => {
   assert.match(html, /id="currentHandOutcomeCard"/);
+  assert.match(html, /id="primaryMove"/);
+  assert.match(html, /id="primaryStake"/);
+  assert.match(html, /id="primaryWinChance"/);
+  assert.match(html, /id="primaryPushChance"/);
+  assert.match(html, /id="primaryLossChance"/);
   assert.match(html, /id="currentHandWinChance"/);
   assert.match(html, /id="currentHandPushChance"/);
   assert.match(html, /id="currentHandLossChance"/);
-  assert.match(html, /id="nextWagerOutcomeCard"/);
-  assert.match(html, /id="nextWagerWinChance"/);
-  assert.match(html, /id="nextWagerPushChance"/);
-  assert.match(html, /id="nextWagerLossChance"/);
   assert.match(html, /function renderCurrentHandOutcome\(result\)/);
-  assert.match(html, /function renderNextWagerOutcome\(outcomes\)/);
   assert.match(html, /Estimated for " \+ actionKey\.toUpperCase\(\)/);
 });
 
@@ -2355,7 +2352,7 @@ test("advisor answer identifies the hand and rule factors used for its recommend
   });
   assert.equal(elevenVsAce.action, "HIT");
   assert.equal(elevenVsAce.alternativeAction, "DOUBLE");
-  assert.match(elevenVsAce.explanation, /dealer hole-card\/peek rule unpublished/);
+  assert.match(elevenVsAce.explanation, /hole-card\/peek rule is unpublished/);
 });
 
 test("unsplittable aces use hit instead of soft-12 double advice", () => {
@@ -4515,16 +4512,13 @@ test("private strategy endpoint validates same-origin requests and does not serv
   });
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "no-store");
-  const payload = await response.json();
-  assert.equal(payload.action, "HIT");
-  assert.equal(payload.alternativeAction, null);
-  assert.equal(payload.hand.total, 16);
-  assert.equal(payload.hand.soft, false);
-  assert.ok(payload.analysis);
-  assert.ok(payload.analysis.outcomeProbabilities.hit);
-  for (const key of ["win", "push", "loss"]) {
-    assert.ok(Number.isFinite(payload.analysis.outcomeProbabilities.hit[key]));
-  }
+  assert.deepEqual(await response.json(), {
+    action: "HIT",
+    alternativeAction: null,
+    explanation: "Basic strategy hits this hand against the dealer upcard. Factors considered: published 8-deck, stand-on-soft-17 baseline; hard total 16; 2 player cards; dealer upcard 10; double available; not a pair.",
+    hand: {total: 16, soft: false},
+    analysis: null
+  });
 
   const evResponse = await fetch(origin + "/api/advice", {
     method: "POST",

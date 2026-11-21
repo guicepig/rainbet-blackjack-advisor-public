@@ -152,7 +152,7 @@ function actionForSplitHand(cards, dealer, options) {
 }
 
 function expectedValueActionAnalysis(cards, dealer, options) {
-  if (dealer.value < 2 || dealer.value > 11 || options.afterSplit) return null;
+  if (dealer.value < 2 || dealer.value > 9 || options.afterSplit) return null;
 
   const rankProbabilities = [1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 4 / 13];
   const stateForCards = (hand) => hand.reduce((state, card) => ({

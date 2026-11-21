@@ -520,6 +520,47 @@
     .advisor-status { min-height: 1.4em; margin: 3px 0 0; font-size: .78rem; }
     .advisor-status.error { color: #ffbf9b; }
     .advisor-live-reason { margin: 0; color: #c5d0ca; font-size: .8rem; line-height: 1.35; }
+    .advisor-decision-metrics {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(130px, .8fr) minmax(160px, 1fr) minmax(280px, 1.7fr);
+      gap: 9px;
+      margin: 2px 0;
+    }
+    .advisor-decision-metric {
+      min-width: 0;
+      padding: 10px 12px;
+      border: 1px solid rgba(154, 207, 170, .24);
+      border-radius: 12px;
+      background: linear-gradient(145deg, rgba(31, 65, 40, .72), rgba(11, 24, 15, .72));
+    }
+    .advisor-decision-metric span {
+      display: block;
+      margin-bottom: 3px;
+      color: #b4c8b8;
+      font-size: .62rem;
+      font-weight: 850;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .advisor-decision-metric strong {
+      display: block;
+      color: #effff2;
+      font-size: clamp(1.05rem, 2vw, 1.45rem);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.05;
+    }
+    .advisor-decision-metric.move-metric strong { color: #a8f0bd; }
+    .advisor-decision-metric.stake-metric strong { color: #f1d891; }
+    .advisor-decision-metric.outcome-metric { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+    .advisor-decision-metric.outcome-metric > span { grid-column: 1 / -1; margin: 0; }
+    .advisor-decision-metric.outcome-metric div { text-align: center; }
+    .advisor-decision-metric.outcome-metric div span {
+      margin: 0;
+      color: #c1cdbf;
+      font-size: .58rem;
+    }
+    .advisor-decision-metric.outcome-metric div strong { font-size: 1rem; }
     .advisor-outcome-chances {
       display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
       margin: 8px 0 5px;
@@ -530,17 +571,6 @@
     }
     .advisor-outcome-chances span { color: #aebcaf; font-size: .64rem; text-transform: uppercase; letter-spacing: .08em; }
     .advisor-outcome-chances strong { color: #dff7e5; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
-    .advisor-next-wager-chances {
-      display: grid; grid-template-columns: 1fr repeat(3, minmax(58px, .5fr)); align-items: center; gap: 7px;
-      margin: 9px 0 8px; padding: 8px; border: 1px solid rgba(164, 207, 176, .24);
-      border-radius: 12px; background: rgba(6, 16, 9, .35);
-    }
-    .advisor-next-wager-chances div { display: grid; gap: 1px; text-align: center; }
-    .advisor-next-wager-chances .advisor-next-wager-title {
-      color: #c9dacf; font-size: .66rem; font-weight: 850; line-height: 1.25; text-align: left;
-    }
-    .advisor-next-wager-chances span { color: #aebdaf; font-size: .58rem; text-transform: uppercase; letter-spacing: .07em; }
-    .advisor-next-wager-chances strong { color: #edf9ef; font-size: .88rem; font-variant-numeric: tabular-nums; }
     .advisor-live-insurance { margin: 3px 0 0; color: var(--muted); font-size: .72rem; }
     .advisor-wager-card {
       grid-column: 1 / -1; margin-top: 6px; padding: 16px;
@@ -779,6 +809,15 @@
       }
       .advisor-live-action { font-size: 1.05rem; }
       .advisor-live-hand { font-size: .74rem; }
+      .advisor-decision-metrics {
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+      }
+      .advisor-decision-metric { padding: 8px 9px; }
+      .advisor-decision-metric.outcome-metric {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(3, 1fr);
+      }
       .advisor-live-reason { font-size: .7rem; }
       .advisor-live-insurance { font-size: .65rem; }
       .advisor-wager-card { padding: 12px; }
@@ -1559,6 +1598,22 @@
         </div>
       </section>
       <section class="advisor-live-advice" aria-label="Current strategy recommendation" aria-live="polite">
+        <div class="advisor-decision-metrics" aria-label="Primary advisor decisions">
+          <div class="advisor-decision-metric move-metric">
+            <span>Recommended move</span>
+            <strong id="primaryMove">CHECKING</strong>
+          </div>
+          <div class="advisor-decision-metric stake-metric">
+            <span>Next-hand stake</span>
+            <strong id="primaryStake">—</strong>
+          </div>
+          <div class="advisor-decision-metric outcome-metric">
+            <span>Next-hand outcome estimate</span>
+            <div><span>Win</span><strong id="primaryWinChance">—</strong></div>
+            <div><span>Push</span><strong id="primaryPushChance">—</strong></div>
+            <div><span>Loss</span><strong id="primaryLossChance">—</strong></div>
+          </div>
+        </div>
         <div>
           <p class="advisor-live-label">Recommended move</p>
           <div class="advisor-live-action-row">
@@ -1569,15 +1624,15 @@
         <div>
           <p class="advisor-live-hand" id="handSummary">Hard 16 vs. dealer 10</p>
           <p class="fine advisor-status" id="advisorStatus" aria-live="polite"></p>
-          <div class="advisor-outcome-chances" id="currentHandOutcomeCard" aria-label="Estimated outcome chances">
-            <div><span>Win</span><strong id="currentHandWinChance">—</strong></div>
-            <div><span>Push</span><strong id="currentHandPushChance">—</strong></div>
-            <div><span>Loss</span><strong id="currentHandLossChance">—</strong></div>
-          </div>
-          <p class="fine" id="currentHandOutcomeNote">Outcome chances appear after the recommendation is calculated.</p>
           <details class="advisor-explanation">
             <summary>Why this move?</summary>
             <p class="advisor-live-reason" id="reason">The private advisor server will calculate a recommendation for this hand.</p>
+            <div class="advisor-outcome-chances" id="currentHandOutcomeCard" aria-label="Estimated outcome chances">
+              <div><span>Win</span><strong id="currentHandWinChance">—</strong></div>
+              <div><span>Push</span><strong id="currentHandPushChance">—</strong></div>
+              <div><span>Loss</span><strong id="currentHandLossChance">—</strong></div>
+            </div>
+            <p class="fine" id="currentHandOutcomeNote">Outcome chances appear after the recommendation is calculated.</p>
             <p class="fine" id="decisionAnalysis" aria-live="polite"></p>
             <p class="advisor-live-insurance" id="insurance">Insurance: not offered for this upcard.</p>
           </details>
@@ -1600,12 +1655,6 @@
               <strong id="suggestedWagerAmount" aria-live="polite">—</strong>
             </div>
             <button type="button" class="secondary" id="useSuggestedWager" disabled>Use for next hand</button>
-          </div>
-          <div class="advisor-next-wager-chances" id="nextWagerOutcomeCard" aria-label="Chance of the next wager outcome">
-            <div class="advisor-next-wager-title">Chance of next wager</div>
-            <div><span>Win</span><strong id="nextWagerWinChance">—</strong></div>
-            <div><span>Push</span><strong id="nextWagerPushChance">—</strong></div>
-            <div><span>Loss</span><strong id="nextWagerLossChance">—</strong></div>
           </div>
           <p class="advisor-wager-guidance" id="suggestedWagerText" aria-live="polite">Fictional suggestions are off. Enable them in Settings.</p>
           <p class="advisor-wager-history" id="wagerHistorySummary" aria-live="polite">The history-based estimate appears here with its sample size and uncertainty range.</p>
@@ -2659,7 +2708,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
       let vibrationFeedbackEnabled = true;
       let vibrationFeedbackUnavailable = false;
       let suggestedWagerAmount = null;
-       let nextWagerOutcome = null;
       const sessionLogKey = "rainbet-blackjack-fictional-session-log-v1";
       const sessionLossLimitKey = "rainbet-blackjack-fictional-session-loss-limit-v1";
       const dasRuleKey = "rainbet-blackjack-das-rule-v1";
@@ -5412,59 +5460,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
           ". DOUBLE probabilities assume one additional card and a doubled exposure. This is a rule-based estimate with replacement, not a learned guarantee; it does not track prior hands or model splits, surrender, side bets, or unpublished table rules.";
       }
 
-      function renderNextWagerOutcome(outcomes) {
-        nextWagerOutcome = outcomes || null;
-        const win = byId("nextWagerWinChance");
-        const push = byId("nextWagerPushChance");
-        const loss = byId("nextWagerLossChance");
-        if (!win || !push || !loss) return;
-        if (!outcomes) {
-          win.textContent = push.textContent = loss.textContent = "—";
-          return;
-        }
-        win.textContent = (outcomes.win * 100).toFixed(1) + "%";
-        push.textContent = (outcomes.push * 100).toFixed(1) + "%";
-        loss.textContent = (outcomes.loss * 100).toFixed(1) + "%";
-      }
-
-      function renderCurrentHandOutcome(result) {
-        const win = byId("currentHandWinChance");
-        const push = byId("currentHandPushChance");
-        const loss = byId("currentHandLossChance");
-        const note = byId("currentHandOutcomeNote");
-        if (!win || !push || !loss || !note) return;
-        if (!result || result.hand.total > 21) {
-          win.textContent = "0.0%";
-          push.textContent = "0.0%";
-          loss.textContent = "100.0%";
-          note.textContent = "The hand is already bust, so loss is certain under the entered cards.";
-          renderNextWagerOutcome({win: 0, push: 0, loss: 1});
-          return;
-        }
-        if (!result.analysis || !result.action) {
-          win.textContent = push.textContent = loss.textContent = "—";
-          note.textContent = "Outcome chances are unavailable for this split or dealer upcard.";
-          renderNextWagerOutcome(null);
-          return;
-        }
-        const actionKey = String(result.analysis.bestAction || result.action).toLowerCase();
-        const outcomes = result.analysis.outcomeProbabilities &&
-          result.analysis.outcomeProbabilities[actionKey];
-        if (!outcomes || !["win", "push", "loss"].every((key) =>
-          Number.isFinite(outcomes[key]) && outcomes[key] >= 0 && outcomes[key] <= 1)) {
-          win.textContent = push.textContent = loss.textContent = "—";
-          note.textContent = "Outcome chances are unavailable for this hand.";
-          renderNextWagerOutcome(null);
-          return;
-        }
-        win.textContent = (outcomes.win * 100).toFixed(1) + "%";
-        push.textContent = (outcomes.push * 100).toFixed(1) + "%";
-        loss.textContent = (outcomes.loss * 100).toFixed(1) + "%";
-        note.textContent = "Estimated for " + actionKey.toUpperCase() +
-          " using 8-deck S17 rank probabilities. Approximation, not a Rainbet future outcome.";
-        renderNextWagerOutcome(outcomes);
-      }
-
       async function decide(recordConsultation) {
         if (strategyRequestState.controller) strategyRequestState.controller.abort();
         const controller = new AbortController();
@@ -5576,10 +5571,14 @@ node .\rainbet-gemini-server.cjs</code></pre>
             : "Insurance: not offered for this upcard.";
           if (result.hand.total > 21) {
             byId("action").textContent = "BUST";
+            if (byId("primaryMove")) byId("primaryMove").textContent = "BUST";
             byId("reason").textContent = "This hand is already over 21.";
             byId("decisionAnalysis").textContent = "";
           } else {
             byId("action").textContent = result.alternativeAction
+              ? result.action + " / " + result.alternativeAction
+              : result.action;
+            if (byId("primaryMove")) byId("primaryMove").textContent = result.alternativeAction
               ? result.action + " / " + result.alternativeAction
               : result.action;
             if (byId("copyAdviceSummary")) byId("copyAdviceSummary").hidden = false;
@@ -5632,6 +5631,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("moveActionPanel").hidden = true;
           byId("moveFollowup").hidden = true;
           byId("action").textContent = requestStarted ? "ADVISOR UNAVAILABLE" : "CHECK INPUT";
+          if (byId("primaryMove")) byId("primaryMove").textContent =
+            requestStarted ? "UNAVAILABLE" : "CHECK INPUT";
           byId("decisionAnalysis").textContent = "";
           const errorMessage = requestStarted
             ? advisorRequestErrorMessage(error, window.location.protocol)
@@ -5797,6 +5798,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
         const amountDisplay = byId("suggestedWagerAmount");
         const historyDisplay = byId("wagerHistorySummary");
         if (!message || !applyButton || !amountDisplay || !historyDisplay) return;
+        const primaryStake = byId("primaryStake");
+        if (primaryStake) primaryStake.textContent = "—";
         suggestedWagerAmount = null;
         applyButton.disabled = true;
         amountDisplay.textContent = "—";
@@ -5911,6 +5914,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           suggestedWagerAmount = cap.amount;
           applyButton.disabled = false;
           amountDisplay.textContent = formatManualBalance(cap.amount);
+          if (primaryStake) primaryStake.textContent = formatManualBalance(cap.amount);
           const strategyNames = {
             flat: "Flat",
             martingale: "Martingale",
@@ -7764,6 +7768,59 @@ node .\rainbet-gemini-server.cjs</code></pre>
                 pendingConsultation.cards.join(", ") + " vs. dealer " + pendingConsultation.dealer + ".";
             }
 
+            function renderPrimaryMove(move) {
+              const primary = byId("primaryMove");
+              if (primary) primary.textContent = move || "—";
+            }
+
+            function renderCurrentHandOutcome(result) {
+              const win = byId("currentHandWinChance");
+              const push = byId("currentHandPushChance");
+              const loss = byId("currentHandLossChance");
+              const note = byId("currentHandOutcomeNote");
+              if (!win || !push || !loss || !note) return;
+              const primaryWin = byId("primaryWinChance");
+              const primaryPush = byId("primaryPushChance");
+              const primaryLoss = byId("primaryLossChance");
+              if (!result || result.hand.total > 21) {
+                win.textContent = "0.0%";
+                push.textContent = "0.0%";
+                loss.textContent = "100.0%";
+                if (primaryWin) primaryWin.textContent = "0.0%";
+                if (primaryPush) primaryPush.textContent = "0.0%";
+                if (primaryLoss) primaryLoss.textContent = "100.0%";
+                note.textContent = "The hand is already bust, so loss is certain under the entered cards.";
+                return;
+              }
+              if (!result.analysis || !result.action) {
+                win.textContent = push.textContent = loss.textContent = "—";
+                if (primaryWin) primaryWin.textContent = "—";
+                if (primaryPush) primaryPush.textContent = "—";
+                if (primaryLoss) primaryLoss.textContent = "—";
+                note.textContent = "Outcome chances are unavailable for this split or dealer upcard.";
+                return;
+              }
+              const actionKey = String(result.analysis.bestAction || result.action).toLowerCase();
+              const outcomes = result.analysis.outcomeProbabilities &&
+                result.analysis.outcomeProbabilities[actionKey];
+              if (!outcomes || !["win", "push", "loss"].every((key) =>
+                Number.isFinite(outcomes[key]) && outcomes[key] >= 0 && outcomes[key] <= 1)) {
+                win.textContent = push.textContent = loss.textContent = "—";
+                if (primaryWin) primaryWin.textContent = "—";
+                if (primaryPush) primaryPush.textContent = "—";
+                if (primaryLoss) primaryLoss.textContent = "—";
+                note.textContent = "Outcome chances are unavailable for this hand.";
+                return;
+              }
+              win.textContent = (outcomes.win * 100).toFixed(1) + "%";
+              push.textContent = (outcomes.push * 100).toFixed(1) + "%";
+              loss.textContent = (outcomes.loss * 100).toFixed(1) + "%";
+              if (primaryWin) primaryWin.textContent = win.textContent;
+              if (primaryPush) primaryPush.textContent = push.textContent;
+              if (primaryLoss) primaryLoss.textContent = loss.textContent;
+              note.textContent = "Estimated for " + actionKey.toUpperCase() +
+                " using 8-deck S17 rank probabilities. Approximation, not a Rainbet future outcome.";
+            }
           }
           const counts = entries.reduce((result, entry) => {
             if (entry.result === "win" || entry.result === "loss" || entry.result === "push") result[entry.result]++;
