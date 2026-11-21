@@ -2300,7 +2300,12 @@ test("recommendation panel exposes visible win push and loss percentages", () =>
   assert.match(html, /id="currentHandWinChance"/);
   assert.match(html, /id="currentHandPushChance"/);
   assert.match(html, /id="currentHandLossChance"/);
+  assert.match(html, /id="nextWagerOutcomeCard"/);
+  assert.match(html, /id="nextWagerWinChance"/);
+  assert.match(html, /id="nextWagerPushChance"/);
+  assert.match(html, /id="nextWagerLossChance"/);
   assert.match(html, /function renderCurrentHandOutcome\(result\)/);
+  assert.match(html, /function renderNextWagerOutcome\(outcomes\)/);
   assert.match(html, /Estimated for " \+ actionKey\.toUpperCase\(\)/);
 });
 
