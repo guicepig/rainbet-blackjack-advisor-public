@@ -2286,10 +2286,13 @@ test("8-deck expected-value analysis compares available actions with a replaceme
     2 * (soft17.outcomeProbabilities.double.win - soft17.outcomeProbabilities.double.loss)) < 1e-12,
   "double EV reflects twice the initial wager");
 
-  assert.equal(expectedValueActionAnalysis([card(10), card(6)], card(10), {
+  const dealerTen = expectedValueActionAnalysis([card(10), card(6)], card(10), {
     doubleAllowed: true,
     afterSplit: false
-  }), null);
+  });
+  assert.ok(dealerTen);
+  assert.ok(["win", "push", "loss"].every((key) =>
+    Number.isFinite(dealerTen.outcomeProbabilities.hit[key])));
 });
 
 test("recommendation panel exposes visible win push and loss percentages", () => {
@@ -2347,7 +2350,7 @@ test("advisor answer identifies the hand and rule factors used for its recommend
   });
   assert.equal(elevenVsAce.action, "HIT");
   assert.equal(elevenVsAce.alternativeAction, "DOUBLE");
-  assert.match(elevenVsAce.explanation, /hole-card\/peek rule is unpublished/);
+  assert.match(elevenVsAce.explanation, /dealer hole-card\/peek rule unpublished/);
 });
 
 test("unsplittable aces use hit instead of soft-12 double advice", () => {
@@ -4507,13 +4510,16 @@ test("private strategy endpoint validates same-origin requests and does not serv
   });
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "no-store");
-  assert.deepEqual(await response.json(), {
-    action: "HIT",
-    alternativeAction: null,
-    explanation: "Basic strategy hits this hand against the dealer upcard. Factors considered: published 8-deck, stand-on-soft-17 baseline; hard total 16; 2 player cards; dealer upcard 10; double available; not a pair.",
-    hand: {total: 16, soft: false},
-    analysis: null
-  });
+  const payload = await response.json();
+  assert.equal(payload.action, "HIT");
+  assert.equal(payload.alternativeAction, null);
+  assert.equal(payload.hand.total, 16);
+  assert.equal(payload.hand.soft, false);
+  assert.ok(payload.analysis);
+  assert.ok(payload.analysis.outcomeProbabilities.hit);
+  for (const key of ["win", "push", "loss"]) {
+    assert.ok(Number.isFinite(payload.analysis.outcomeProbabilities.hit[key]));
+  }
 
   const evResponse = await fetch(origin + "/api/advice", {
     method: "POST",

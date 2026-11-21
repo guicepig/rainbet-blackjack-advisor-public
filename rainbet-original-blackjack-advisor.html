@@ -1558,15 +1558,15 @@
         <div>
           <p class="advisor-live-hand" id="handSummary">Hard 16 vs. dealer 10</p>
           <p class="fine advisor-status" id="advisorStatus" aria-live="polite"></p>
+          <div class="advisor-outcome-chances" id="currentHandOutcomeCard" aria-label="Estimated outcome chances">
+            <div><span>Win</span><strong id="currentHandWinChance">—</strong></div>
+            <div><span>Push</span><strong id="currentHandPushChance">—</strong></div>
+            <div><span>Loss</span><strong id="currentHandLossChance">—</strong></div>
+          </div>
+          <p class="fine" id="currentHandOutcomeNote">Outcome chances appear after the recommendation is calculated.</p>
           <details class="advisor-explanation">
             <summary>Why this move?</summary>
             <p class="advisor-live-reason" id="reason">The private advisor server will calculate a recommendation for this hand.</p>
-            <div class="advisor-outcome-chances" id="currentHandOutcomeCard" aria-label="Estimated outcome chances">
-              <div><span>Win</span><strong id="currentHandWinChance">—</strong></div>
-              <div><span>Push</span><strong id="currentHandPushChance">—</strong></div>
-              <div><span>Loss</span><strong id="currentHandLossChance">—</strong></div>
-            </div>
-            <p class="fine" id="currentHandOutcomeNote">Outcome chances appear after the recommendation is calculated.</p>
             <p class="fine" id="decisionAnalysis" aria-live="polite"></p>
             <p class="advisor-live-insurance" id="insurance">Insurance: not offered for this upcard.</p>
           </details>
