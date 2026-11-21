@@ -813,9 +813,6 @@ test("Google sign-in errors explain Firebase setup and user-actionable failures"
 test("Google sign-in supports mobile redirect and recovers popup-blocked desktop sign-in", () => {
   const moduleSource = fs.readFileSync(path.join(__dirname, "rainbet-cloud-history.mjs"), "utf8");
   assert.match(moduleSource, /function shouldUseGoogleSignInRedirect\(\)/);
-  assert.match(moduleSource, /requestGoogleAccessToken/);
-  assert.match(moduleSource, /initTokenClient/);
-  assert.match(moduleSource, /signInWithCredential/);
   assert.match(moduleSource, /authSdk\.signInWithRedirect\(auth, provider\)/);
   assert.match(moduleSource, /authSdk\.signInWithPopup\(auth, provider\)/);
   assert.match(moduleSource, /error\.code !== "auth\/popup-blocked"/);
@@ -959,6 +956,8 @@ test("sticky advisor recommendation stays visible with a view-advice control", (
 test("move follow-up panel stays in page flow to avoid covering the card table", () => {
   assert.match(html, /\.move-action-panel\s*\{\s*margin:/);
   assert.doesNotMatch(html, /\.move-action-panel\s*\{[^}]*position:\s*sticky/);
+  assert.match(html, /What did you do\?/);
+  assert.match(html, /What did you choose to do\?/);
 });
 
 test("advisor starts empty and offers a clearly labeled example hand", () => {
@@ -3289,11 +3288,13 @@ test("using the advisor automatically records the server recommendation without 
     dasRule: {value: "unknown"},
     insurance: {textContent: ""},
     action: {textContent: ""},
+    primaryMove: {textContent: ""},
     reason: {textContent: ""},
     advisorStatus: {textContent: "", classList: {add() {}, remove() {}}},
     decisionAnalysis: {textContent: ""},
     handSummary: {textContent: ""},
-    moveActionPanel: {hidden: true},
+    moveActionPanel: {hidden: true, scrollIntoView() {}},
+    moveActionHeading: {textContent: ""},
     moveActionButtons: {hidden: true},
     moveFollowup: {hidden: true},
     handResultEntry: {hidden: true},

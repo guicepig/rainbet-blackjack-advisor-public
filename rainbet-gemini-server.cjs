@@ -414,7 +414,7 @@ function createServer(options) {
     const idToken = typeof authorization === "string" && authorization.startsWith("Bearer ")
       ? authorization.slice(7).trim()
       : "";
-    if (!idToken) return {allowed: false, status: 401, error: "Sign in and activate membership to use advisor recommendations."};
+    if (!idToken) return {allowed: false, status: 401, error: "Sign in with Google to use advisor recommendations."};
     let decoded;
     try {
       decoded = await billingStore.auth.verifyIdToken(idToken, true);

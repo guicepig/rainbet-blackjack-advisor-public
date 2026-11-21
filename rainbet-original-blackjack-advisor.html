@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Rainbet Originals Game Advisor — Blackjack, Keno &amp; Mines</title>
-  <script src="https://accounts.google.com/gsi/client" async></script>
   <style>
     :root {
       color-scheme: dark;
@@ -5396,7 +5395,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           try {
             authorization = "Bearer " + await cloudHistoryClient.getBillingIdToken();
           } catch {
-            throw new Error("Sign in with Google and activate $1 trial or $10 monthly membership to use advice.");
+            throw new Error("Sign in with Google first. The advisor is free for your test account; paid membership is not required.");
           }
         }
         const headers = {"Content-Type": "application/json"};
@@ -5569,6 +5568,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
           if (requestVersion !== strategyRequestState.version) return null;
           byId("moveActionPanel").hidden = result.hand.total > 21;
           byId("moveActionButtons").hidden = result.hand.total > 21;
+          if (result.hand.total <= 21) {
+            byId("moveActionHeading").textContent = "What did you choose to do?";
+            byId("moveActionPanel").scrollIntoView({behavior: "smooth", block: "nearest"});
+          }
           if (result.hand.total > 21) byId("moveFollowup").hidden = true;
           byId("insurance").textContent = dealer.rank === "A"
             ? "Insurance: decline under standard basic strategy; it is a separate side bet."
