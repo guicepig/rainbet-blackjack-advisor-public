@@ -758,7 +758,8 @@ test("settings provide private account, appearance, interface, privacy, practice
 test("privacy disclosures explain local data, account sync, and optional providers", () => {
   assert.match(html, /Start \$1 intro week/);
   assert.match(html, /Upgrade for \$10\/month/);
-  assert.match(html, /\$1 USD today for 7 days, then \$10 USD\/month starting on day 8 unless canceled before renewal/);
+  assert.match(html, /today, for 7 days/);
+  assert.match(html, /Then \$10 USD\/month starting on day 8 unless canceled before renewal/);
   assert.match(html, /id="membershipBillingConsent"/);
   assert.match(mainScript, /api\/billing\/trial/);
   assert.match(mainScript, /api\/billing\/checkout/);
@@ -802,12 +803,18 @@ test("membership purchase is reachable from navigation and the advisor paywall",
   assert.match(html, /id="membershipRequiredPrompt" hidden/);
   assert.match(html, /id="openMembershipFromPrompt">View membership options<\/button>/);
   assert.match(html, /<dialog class="settings-dialog membership-dialog" id="membershipDialog"/);
-  assert.match(html, /Signing in is free and does not start a subscription/i);
+  assert.match(html, /Google sign-in is free and does not start a subscription/i);
   assert.match(html, /id="membershipInstructions"/);
   assert.match(html, /id="membershipOptions" tabindex="-1"/);
   assert.match(html, /id="membershipPricingDetails"/);
+  assert.match(html, /id="membershipTrialPlan"/);
+  assert.match(html, /Then \$10 USD\/month starting on day 8 unless canceled before renewal\./);
+  assert.match(html, /id="membershipMonthlyPlan"/);
+  assert.match(html, /Renews at \$10 USD\/month until canceled\./);
   assert.match(html, /id="membershipSignIn" hidden disabled>Continue with Google<\/button>/);
   assert.match(html, /id="membershipBillingConsentLabel"[^>]*hidden/);
+  assert.match(html, /id="membershipBillingConsent" type="checkbox"/);
+  assert.match(html, /I agree to recurring billing for the plan I select\./);
   assert.match(html, /id="continueWithTestAccess" hidden>Continue to advisor<\/button>/);
   assert.match(mainScript, /byId\("openMembership"\)\.addEventListener\("click", openMembershipOptions\)/);
   assert.match(mainScript, /byId\("openMembershipFromPrompt"\)\.addEventListener\("click", openMembershipOptions\)/);
@@ -976,6 +983,8 @@ test("membership status refresh updates account controls after the server respon
     cancelUpcomingMembership: {hidden: false, disabled: false},
     manageMembership: {hidden: false, disabled: false},
     membershipPricingDetails: {hidden: false},
+    membershipTrialPlan: {hidden: false},
+    membershipMonthlyPlan: {hidden: false},
     continueWithTestAccess: {hidden: false}
   };
   const state = new Function(
@@ -1009,6 +1018,8 @@ test("membership status refresh updates account controls after the server respon
   assert.equal(state.getState().controlsRefreshes, 1);
   assert.equal(elements.manageMembership.hidden, false);
   assert.equal(elements.startTrialMembership.hidden, true);
+  assert.equal(elements.membershipTrialPlan.hidden, true);
+  assert.equal(elements.membershipMonthlyPlan.hidden, true);
   assert.equal(elements.membershipPricingDetails.hidden, false);
   assert.equal(elements.continueWithTestAccess.hidden, true);
 });
@@ -1025,6 +1036,8 @@ test("free test access hides payment consent and offers a direct route to the ad
     cancelUpcomingMembership: {hidden: false, disabled: false},
     manageMembership: {hidden: false, disabled: false},
     membershipPricingDetails: {hidden: false},
+    membershipTrialPlan: {hidden: false},
+    membershipMonthlyPlan: {hidden: false},
     membershipBillingConsent: {checked: true},
     membershipBillingConsentLabel: {hidden: false},
     continueWithTestAccess: {hidden: true}
@@ -1069,6 +1082,8 @@ test("free test access hides payment consent and offers a direct route to the ad
   assert.equal(elements.continueWithTestAccess.hidden, false);
   assert.equal(elements.startTrialMembership.hidden, true);
   assert.equal(elements.upgradeMembership.hidden, true);
+  assert.equal(elements.membershipTrialPlan.hidden, true);
+  assert.equal(elements.membershipMonthlyPlan.hidden, true);
 });
 
 test("signed-out membership view exposes plan choices and directs users to Google sign-in", async () => {
@@ -1083,6 +1098,8 @@ test("signed-out membership view exposes plan choices and directs users to Googl
     cancelUpcomingMembership: {hidden: false, disabled: false},
     manageMembership: {hidden: false, disabled: false},
     membershipPricingDetails: {hidden: true},
+    membershipTrialPlan: {hidden: true},
+    membershipMonthlyPlan: {hidden: true},
     continueWithTestAccess: {hidden: false}
   };
   const state = new Function(
@@ -1112,6 +1129,8 @@ test("signed-out membership view exposes plan choices and directs users to Googl
   assert.equal(elements.cancelUpcomingMembership.hidden, true);
   assert.match(elements.membershipStatus.textContent, /Google sign-in is unavailable/);
   assert.equal(elements.membershipPricingDetails.hidden, false);
+  assert.equal(elements.membershipTrialPlan.hidden, false);
+  assert.equal(elements.membershipMonthlyPlan.hidden, false);
   assert.equal(elements.continueWithTestAccess.hidden, true);
   assert.equal(state.getState().controlsRefreshes, 1);
 });

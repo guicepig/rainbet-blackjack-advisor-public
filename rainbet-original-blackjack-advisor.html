@@ -1795,18 +1795,192 @@
     }
     .advisor-zone-select { border-radius: 8px; }
     .membership-dialog {
-      width: min(660px, calc(100vw - 28px));
-      max-height: calc(100dvh - 28px);
+      width: min(820px, calc(100vw - 28px));
+      max-height: min(90dvh, 880px);
       overflow: auto;
       margin: auto;
+      padding: clamp(20px, 4vw, 36px);
+      border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+      border-radius: 22px;
+      background:
+        radial-gradient(ellipse at 92% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 25rem),
+        linear-gradient(145deg, var(--panel-raised), var(--panel));
+      box-shadow: 0 28px 90px rgba(0, 0, 0, .48);
+    }
+    .membership-dialog .settings-heading {
+      align-items: flex-start;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+    .membership-dialog .settings-heading-copy { max-width: 650px; }
+    .membership-eyebrow {
+      margin: 0 0 7px;
+      color: var(--accent);
+      font-size: .66rem;
+      font-weight: 850;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .membership-dialog .settings-heading-copy h2 {
+      margin: 0 0 7px;
+      font-size: clamp(1.55rem, 3vw, 2rem);
+      letter-spacing: -.04em;
+    }
+    .membership-dialog #membershipInstructions {
+      max-width: 62ch;
+      margin: 0;
+      font-size: .88rem;
+      line-height: 1.55;
+    }
+    .membership-dialog #closeMembershipDialog {
+      flex: 0 0 42px;
+      width: 42px;
+      min-height: 42px;
+      margin: 0;
+      border-radius: 12px;
     }
     .membership-options-card {
-      margin-top: 18px;
-      padding: clamp(16px, 3vw, 24px);
-      border: 1px solid var(--line);
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
     }
-    .membership-options-card > h3 { margin-top: 0; }
-    .membership-options-card .settings-controls { margin-top: 16px; }
+    .membership-plan-heading {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .membership-plan-heading h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      letter-spacing: -.02em;
+    }
+    .membership-plan-heading .membership-eyebrow { margin-bottom: 5px; }
+    .membership-secure-label {
+      flex: 0 0 auto;
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: .68rem;
+      font-weight: 700;
+    }
+    .membership-dialog #membershipSignIn {
+      width: 100%;
+      min-height: 48px;
+      margin: 0 0 16px;
+      border-radius: 13px;
+    }
+    .membership-pricing { margin-top: 4px; }
+    .membership-pricing-note {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: .76rem;
+    }
+    .membership-plan-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .membership-plan-card {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(145deg, var(--panel-raised), color-mix(in srgb, var(--panel-raised) 72%, var(--surface)));
+    }
+    .membership-plan-card.membership-plan-featured {
+      border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+      background:
+        linear-gradient(145deg, color-mix(in srgb, var(--accent) 9%, var(--panel-raised)), var(--panel-raised) 72%);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 16%, transparent);
+    }
+    .membership-plan-kicker {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: .65rem;
+      font-weight: 850;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .membership-plan-card h4 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: -.02em;
+    }
+    .membership-plan-price {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin: 15px 0 4px;
+    }
+    .membership-plan-price strong {
+      font-size: 2rem;
+      line-height: 1;
+      letter-spacing: -.05em;
+    }
+    .membership-plan-price span {
+      color: var(--muted);
+      font-size: .78rem;
+    }
+    .membership-plan-renewal {
+      min-height: 2.9em;
+      margin: 7px 0 16px;
+      color: var(--muted);
+      font-size: .78rem;
+      line-height: 1.5;
+    }
+    .membership-plan-card button {
+      width: 100%;
+      min-height: 44px;
+      margin: auto 0 0;
+    }
+    .membership-dialog #membershipBillingConsentLabel:not([hidden]) {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin: 16px 0 0;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: .77rem;
+      line-height: 1.5;
+      cursor: pointer;
+    }
+    .membership-dialog #membershipBillingConsent {
+      flex: 0 0 20px;
+      width: 20px;
+      min-height: 20px;
+      height: 20px;
+      margin: 2px 0 0;
+      padding: 0;
+      accent-color: var(--accent);
+    }
+    .membership-dialog #membershipStatus {
+      min-height: 1.4em;
+      margin: 14px 0 0;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .77rem;
+      line-height: 1.5;
+    }
+    .membership-dialog .settings-controls {
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .membership-dialog .settings-controls button {
+      min-height: 42px;
+      margin: 0;
+      border-radius: 11px;
+    }
     .membership-dialog::backdrop, .settings-dialog::backdrop, .command-palette-dialog::backdrop {
       background: rgba(5, 4, 2, .76);
       backdrop-filter: blur(7px);
@@ -1832,8 +2006,11 @@
       .advisor-table { padding: 16px 12px; border-width: 2px; border-radius: 18px; }
       .site-footer { margin-top: 12px; padding: 10px; }
       .membership-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); padding: 16px; }
-      .settings-heading { gap: 10px; }
-      .membership-options-card { padding: 14px; }
+      .membership-dialog .settings-heading { gap: 10px; margin-bottom: 18px; }
+      .membership-plan-grid { grid-template-columns: 1fr; gap: 10px; }
+      .membership-plan-card { padding: 16px; }
+      .membership-plan-renewal { min-height: 0; }
+      .membership-plan-heading { align-items: flex-start; flex-wrap: wrap; }
       .settings-controls button { flex: 1 1 160px; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -2871,23 +3048,46 @@ node .\rainbet-gemini-server.cjs</code></pre>
   <dialog class="settings-dialog membership-dialog" id="membershipDialog" aria-labelledby="membershipDialogTitle">
     <div class="settings-heading">
       <div class="settings-heading-copy">
+        <p class="membership-eyebrow">MEMBERSHIP</p>
         <h2 id="membershipDialogTitle">Membership</h2>
-        <p class="fine" id="membershipInstructions">Sign in with Google to continue. If membership is required, review the prices and renewal terms below. Signing in is free and does not start a subscription.</p>
+        <p class="fine" id="membershipInstructions">Review the plans below. Google sign-in is free and does not start a subscription; billing begins only after you confirm checkout.</p>
       </div>
       <button type="button" class="secondary" id="closeMembershipDialog" aria-label="Close membership options">×</button>
     </div>
     <div class="membership-options-card" id="membershipOptions" tabindex="-1" aria-labelledby="membershipOptionsTitle">
-      <h3 id="membershipOptionsTitle">Choose a plan</h3>
-      <p class="fine" id="membershipPricingDetails">Intro offer: $1 USD today for 7 days, then $10 USD/month starting on day 8 unless canceled before renewal. Monthly plan: $10 USD now, renewing monthly until canceled. Taxes may apply.</p>
+      <div class="membership-plan-heading">
+        <div>
+          <p class="membership-eyebrow">PLAN OPTIONS</p>
+          <h3 id="membershipOptionsTitle">Choose a plan</h3>
+        </div>
+        <span class="membership-secure-label">Stripe checkout</span>
+      </div>
       <button type="button" id="membershipSignIn" hidden disabled>Continue with Google</button>
-      <label class="fine" id="membershipBillingConsentLabel" for="membershipBillingConsent" hidden>
-        <input id="membershipBillingConsent" type="checkbox">
-        I understand and agree to the recurring billing and cancellation terms for the plan I select.
-      </label>
+      <div class="membership-pricing" id="membershipPricingDetails">
+        <p class="membership-pricing-note">All prices in USD. Taxes may apply.</p>
+        <div class="membership-plan-grid" id="membershipPlanGrid">
+          <article class="membership-plan-card membership-plan-featured" id="membershipTrialPlan" aria-labelledby="membershipTrialPlanTitle">
+            <p class="membership-plan-kicker">7-DAY INTRO</p>
+            <h4 id="membershipTrialPlanTitle">Try the advisor</h4>
+            <p class="membership-plan-price"><strong>$1</strong><span>today, for 7 days</span></p>
+            <p class="membership-plan-renewal">Then $10 USD/month starting on day 8 unless canceled before renewal.</p>
+            <button type="button" id="startTrialMembership" hidden disabled>Start $1 intro week</button>
+          </article>
+          <article class="membership-plan-card" id="membershipMonthlyPlan" aria-labelledby="membershipMonthlyPlanTitle">
+            <p class="membership-plan-kicker">MONTHLY</p>
+            <h4 id="membershipMonthlyPlanTitle">Full advisor access</h4>
+            <p class="membership-plan-price"><strong>$10</strong><span>today, per month</span></p>
+            <p class="membership-plan-renewal">Renews at $10 USD/month until canceled.</p>
+            <button type="button" id="upgradeMembership" hidden disabled>Upgrade for $10/month</button>
+          </article>
+        </div>
+        <label class="fine" id="membershipBillingConsentLabel" for="membershipBillingConsent" hidden>
+          <input id="membershipBillingConsent" type="checkbox">
+          <span>I agree to recurring billing for the plan I select. The $1 intro renews at $10 USD/month after 7 days unless canceled before renewal; the monthly plan renews at $10 USD/month until canceled.</span>
+        </label>
+      </div>
       <p id="membershipStatus" class="fine" aria-live="polite">Continue with Google, accept the billing terms, and choose a plan.</p>
       <div class="settings-controls">
-        <button type="button" id="startTrialMembership" hidden disabled>Start $1 intro week</button>
-        <button type="button" id="upgradeMembership" hidden disabled>Upgrade for $10/month</button>
         <button type="button" class="secondary" id="cancelUpcomingMembership" hidden disabled>Cancel upcoming $10/month renewal</button>
         <button type="button" class="secondary" id="manageMembership" hidden disabled>Manage subscription</button>
         <button type="button" class="secondary" id="continueWithTestAccess" hidden>Continue to advisor</button>
@@ -6895,7 +7095,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           membershipRenewalCanceled = false;
           membershipTestAccess = false;
           byId("membershipInstructions").textContent =
-            "Sign in with Google to continue. If membership is required, review the prices and renewal terms below. Signing in is free and does not start a subscription.";
+            "Review the plans below. Google sign-in is free and does not start a subscription; billing begins only after you confirm checkout.";
           byId("membershipStatus").textContent = cloudHistoryClient
             ? "Continue with Google below to unlock secure checkout."
             : "Google sign-in is unavailable, so checkout cannot be started right now.";
@@ -6904,6 +7104,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("cancelUpcomingMembership").hidden = true;
           byId("manageMembership").hidden = true;
           byId("membershipPricingDetails").hidden = false;
+          byId("membershipTrialPlan").hidden = false;
+          byId("membershipMonthlyPlan").hidden = false;
           byId("continueWithTestAccess").hidden = true;
           updateCloudHistoryControls();
           return;
@@ -6915,7 +7117,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("manageMembership").disabled = true;
         try {
           byId("membershipInstructions").textContent =
-            "Sign in with Google to continue. If membership is required, review the prices and renewal terms below. Signing in is free and does not start a subscription.";
+            "Review the plans below. Google sign-in is free and does not start a subscription; billing begins only after you confirm checkout.";
           const idToken = await cloudHistoryClient.getBillingIdToken();
           const response = await fetch("/api/billing/status", {
             method: "POST",
@@ -6952,6 +7154,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("startTrialMembership").disabled = false;
           byId("upgradeMembership").hidden = membershipTier === "paid";
           byId("upgradeMembership").disabled = false;
+          byId("membershipTrialPlan").hidden = byId("startTrialMembership").hidden;
+          byId("membershipMonthlyPlan").hidden = byId("upgradeMembership").hidden;
           byId("cancelUpcomingMembership").hidden = membershipTier !== "paid" ||
             membershipSubscriptionStatus !== "trialing" || membershipRenewalCanceled;
           byId("cancelUpcomingMembership").disabled = false;
