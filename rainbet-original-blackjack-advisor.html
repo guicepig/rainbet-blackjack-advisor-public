@@ -1408,11 +1408,21 @@
       .keno-game-controls button:last-child { grid-column: 1 / -1; }
     }
     :root[data-theme="slate"] {
-      --theme-glow: rgba(84, 111, 149, .15);
+      --bg: #0b0f16;
+      --panel: #121823;
+      --panel-raised: #1a2331;
+      --line: #303d50;
+      --muted: #a9b5c5;
+      --accent: #92afd5;
+      --accent-strong: #6685ae;
+      --text: #eff4fb;
+      --surface: #0f151e;
+      --theme-glow: rgba(84, 111, 149, .16);
       --theme-button-start: #607998;
       --theme-button-end: #465b78;
       --theme-button-text: #fff;
       --theme-focus: #c5d6ef;
+      --brand-mark-text: #111925;
     }
     :root[data-theme="forest"] {
       --bg: #0b100f;
@@ -1430,19 +1440,21 @@
       --theme-focus: #b4f4d0;
     }
     :root[data-theme="violet"] {
-      --bg: #120f19;
-      --panel: #1c1725;
-      --panel-raised: #282031;
-      --line: #443750;
-      --muted: #c1b6ce;
-      --accent: #d3a9f5;
-      --accent-strong: #a876d2;
-      --text: #f4eff8;
-      --theme-glow: rgba(126, 78, 159, .2);
-      --theme-button-start: #80549f;
-      --theme-button-end: #593875;
-      --theme-button-text: #fff;
-      --theme-focus: #ead2ff;
+      --bg: #080807;
+      --panel: #11100d;
+      --panel-raised: #191711;
+      --line: #403721;
+      --muted: #c4b998;
+      --accent: #f0cd78;
+      --accent-strong: #c59a43;
+      --text: #fbf7ed;
+      --theme-glow: rgba(225, 180, 77, .16);
+      --theme-button-start: #d2aa4f;
+      --theme-button-end: #aa7f2e;
+      --theme-button-text: #120e06;
+      --theme-focus: #ffe5a2;
+      --surface: #100e0a;
+      --brand-mark-text: #151108;
     }
     :root[data-theme="amber"] {
       --bg: #17120d;
@@ -1579,6 +1591,201 @@
       .premium-quickstart-actions { grid-column: 1 / -1; }
       .premium-quickstart-actions button { flex: 1; }
       .advisor-session-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    :root {
+      --surface: #100e0a;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color-scheme: dark;
+    }
+    body {
+      min-height: 100vh;
+      padding: clamp(16px, 3vw, 34px) 18px 48px;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse at 84% -18%, var(--theme-glow, rgba(207, 165, 79, .12)), transparent 48rem),
+        var(--bg);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+    main { width: min(100%, 1120px); }
+    .hero {
+      align-items: center;
+      gap: 20px;
+      padding: clamp(18px, 2.8vw, 28px);
+      border-color: var(--line);
+      border-left: 3px solid var(--accent-strong);
+      border-radius: 14px;
+      background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 5%, var(--panel-raised)), var(--panel) 62%);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, .24);
+    }
+    .brand-mark {
+      width: 52px;
+      height: 52px;
+      border: 1px solid color-mix(in srgb, var(--accent) 62%, var(--line));
+      border-radius: 12px;
+      background: var(--accent);
+      color: var(--brand-mark-text, #151108);
+      box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .hero-copy .badge {
+      border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+      background: color-mix(in srgb, var(--accent) 9%, transparent);
+      color: var(--accent);
+    }
+    .welcome-intro {
+      border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+      background: color-mix(in srgb, var(--accent) 5%, var(--panel-raised));
+    }
+    .panel, .settings-dialog, .command-palette-dialog {
+      border-color: var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      color: var(--text);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .2);
+    }
+    .panel { margin-top: 14px; padding: clamp(18px, 2.6vw, 28px); }
+    .panel[data-feature-panel="advisor"] { padding: clamp(16px, 2.4vw, 24px); }
+    .quick-nav {
+      gap: 5px;
+      padding: 6px;
+      border-color: var(--line);
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .2);
+    }
+    .quick-nav button, .quick-nav-more summary {
+      min-height: 40px;
+      padding: 8px 12px;
+      border-radius: 9px;
+      color: var(--muted);
+      font-size: .82rem;
+      font-weight: 650;
+    }
+    .quick-nav button[aria-pressed="true"] {
+      border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+      background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+      color: var(--accent);
+      box-shadow: none;
+    }
+    .quick-nav button[data-feature-target] {
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+      box-shadow: none;
+    }
+    .quick-nav button[data-feature-target][aria-pressed="true"] {
+      border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+      background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+      color: var(--accent);
+    }
+    .quick-nav #toggleHelperChat {
+      border-color: var(--line);
+      background: var(--panel-raised);
+      color: var(--text);
+      box-shadow: none;
+    }
+    .quick-nav .command-palette-trigger {
+      border-color: var(--line) !important;
+      background: var(--surface) !important;
+      color: var(--text) !important;
+    }
+    button {
+      min-height: 42px;
+      border-radius: 10px;
+      font-size: .9rem;
+      font-weight: 650;
+      letter-spacing: 0;
+      box-shadow: none;
+    }
+    button:not(.secondary) {
+      border-color: var(--theme-button-start);
+      background: linear-gradient(135deg, var(--theme-button-start), var(--theme-button-end));
+      color: var(--theme-button-text, #fff);
+    }
+    button:not(.secondary):hover:not(:disabled) {
+      border-color: var(--theme-button-end);
+      background: var(--theme-button-end);
+      box-shadow: 0 5px 14px rgba(0, 0, 0, .2);
+      filter: none;
+    }
+    button.secondary {
+      border-color: var(--line);
+      background: var(--panel-raised);
+      color: var(--text);
+    }
+    button.secondary:hover:not(:disabled) {
+      border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+      background: color-mix(in srgb, var(--accent) 7%, var(--panel-raised));
+    }
+    select, input:not([type="hidden"]), textarea {
+      border-color: var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--text);
+    }
+    select:focus-visible, input:focus-visible, textarea:focus-visible {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+    .advisor-card-controls, .stats-card, .membership-options-card {
+      border-color: var(--line);
+      border-radius: 13px;
+      background: var(--panel-raised);
+    }
+    .advisor-table {
+      border: 2px solid color-mix(in srgb, var(--accent) 35%, #385142);
+      border-radius: 20px;
+      background:
+        radial-gradient(ellipse at 50% 45%, rgba(72, 132, 75, .24), transparent 68%),
+        radial-gradient(ellipse at center, #1d472f, #123323 76%);
+      box-shadow: inset 0 0 0 1px rgba(221, 235, 222, .1), 0 12px 28px rgba(0, 0, 0, .2);
+    }
+    .advisor-table::before { inset: 8px; border-radius: 15px; }
+    .advisor-zone-select { border-radius: 8px; }
+    .membership-dialog {
+      width: min(660px, calc(100vw - 28px));
+      max-height: calc(100dvh - 28px);
+      overflow: auto;
+      margin: auto;
+    }
+    .membership-options-card {
+      margin-top: 18px;
+      padding: clamp(16px, 3vw, 24px);
+      border: 1px solid var(--line);
+    }
+    .membership-options-card > h3 { margin-top: 0; }
+    .membership-options-card .settings-controls { margin-top: 16px; }
+    .membership-dialog::backdrop, .settings-dialog::backdrop, .command-palette-dialog::backdrop {
+      background: rgba(5, 4, 2, .76);
+      backdrop-filter: blur(7px);
+    }
+    .site-footer {
+      margin-top: 18px;
+      border-color: var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+    @media (max-width: 900px) {
+      .quick-nav { position: relative; top: auto; }
+    }
+    @media (max-width: 720px) {
+      body { padding: 12px 12px 30px; }
+      .hero { gap: 12px; padding: 14px; }
+      .brand-mark { width: 44px; height: 44px; border-radius: 11px; font-size: 1.05rem; }
+      .hero-copy h1 { font-size: clamp(1.05rem, 4vw, 1.35rem); }
+      .quick-nav { margin: 10px 0 14px; padding: 5px; }
+      .quick-nav button { min-height: 36px; padding: 7px 9px; font-size: .76rem; }
+      .panel { margin-top: 10px; padding: 14px; }
+      .panel[data-feature-panel="advisor"] { padding: 12px; }
+      .advisor-table { padding: 16px 12px; border-width: 2px; border-radius: 18px; }
+      .site-footer { margin-top: 12px; padding: 10px; }
+      .membership-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); padding: 16px; }
+      .settings-heading { gap: 10px; }
+      .membership-options-card { padding: 14px; }
+      .settings-controls button { flex: 1 1 160px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; }
     }
   </style>
 </head>
@@ -2533,7 +2740,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
               <select id="themeSelect">
                 <option value="slate">Slate blue</option>
                 <option value="forest">Forest green</option>
-                <option value="violet">Violet</option>
+                <option value="violet">Black &amp; gold · luxe</option>
                 <option value="amber">Amber</option>
               </select>
             </label>
