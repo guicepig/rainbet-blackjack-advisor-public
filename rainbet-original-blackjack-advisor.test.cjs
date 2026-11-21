@@ -4705,6 +4705,7 @@ test("membership checkout requires explicit consent and validates the Google acc
   assert.equal((await introResponse.json()).url, "https://checkout.stripe.test/session");
   assert.equal(mock.checkoutCalls[0].mode, "payment");
   assert.equal("payment_method_types" in mock.checkoutCalls[0], false);
+  assert.equal("custom_text" in mock.checkoutCalls[0], false);
   assert.equal(mock.checkoutCalls[0].payment_intent_data.setup_future_usage, "off_session");
   assert.equal(mock.checkoutCalls[0].metadata.termsVersion, "membership-terms-v1");
   assert.equal(mock.documentPaths.every((path) => path === "users/google-user/membership/current"), true);
@@ -4713,6 +4714,7 @@ test("membership checkout requires explicit consent and validates the Google acc
   assert.equal(monthlyResponse.status, 200);
   assert.equal(mock.checkoutCalls[1].mode, "subscription");
   assert.equal("payment_method_types" in mock.checkoutCalls[1], false);
+  assert.equal("custom_text" in mock.checkoutCalls[1], false);
   assert.equal(mock.checkoutCalls[1].line_items[0].price, "price_monthly");
 });
 

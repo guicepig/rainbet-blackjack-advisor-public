@@ -959,11 +959,6 @@ function createServer(options) {
                 },
                 client_reference_id: uid,
                 metadata,
-                custom_text: {
-                  submit: {
-                    message: "Pay $1 USD today. A $10 USD monthly subscription starts 7 days after payment unless you cancel first."
-                  }
-                },
                 success_url: baseUrl + "/?billing=trial-success",
                 cancel_url: baseUrl + "/?billing=cancel"
               })
@@ -974,11 +969,6 @@ function createServer(options) {
                 client_reference_id: uid,
                 metadata,
                 subscription_data: {metadata},
-                custom_text: {
-                  submit: {
-                    message: "Your $10 USD subscription renews monthly until canceled. You can cancel any time in your account."
-                  }
-                },
                 success_url: baseUrl + "/?billing=success",
                 cancel_url: baseUrl + "/?billing=cancel"
               });
