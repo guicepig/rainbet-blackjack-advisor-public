@@ -2101,7 +2101,7 @@
           <p class="advisor-live-hand" id="handSummary"></p>
           <p class="fine advisor-status" id="advisorStatus" aria-live="polite"></p>
           <div class="membership-required-prompt" id="membershipRequiredPrompt" hidden>
-            <p><strong>Unlock the full advisor:</strong> sign in with Google, then choose $1 for 7 days followed by $10/month, or start $10/month now. Cancel before renewal to avoid the next charge.</p>
+            <p><strong>Unlock the full advisor:</strong> redeem a code in Settings for hand recommendations without signing in, or sign in with Google and choose $1 for 7 days followed by $10/month, or start $10/month now.</p>
             <button type="button" id="openMembershipFromPrompt">View membership options</button>
           </div>
           <details class="advisor-explanation" hidden>
@@ -2829,6 +2829,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
     <ul class="fine">
       <li><strong>On this device:</strong> if you use the advisor, hand records (cards, moves, outcomes, and wager amounts), practice progress, fictional-credit balance, strategy preference, and session-limit entries may be saved in this browser's local storage. The current-hand model recommends moves; saved history is processed separately for the fictional pre-deal stake. The recent-20 pattern can affect Auto sizing only after at least 30 chronological predictions and a positive approximate paired Brier-improvement lower bound. Otherwise conservative recorded-return evidence or the practice baseline remains. The stake is independent of the current cards and future action. First-action probabilities provide context, and Split is one round-level result. History-based W/L sizing assumes even-money returns unless exact net returns are recorded. These estimates are experimental, uncertain, and not real-money advice. Your balance, practice progress, preferences, and session-limit entries stay in this browser. Hand history also stays here until you sign in and sync it. Local data remain until you clear them in the app or browser.</li>
       <li><strong>Advisor requests:</strong> the card ranks you enter, dealer upcard, and selected rule toggles are sent to the operator's server to calculate each recommendation or practice answer. Requests are processed in memory and are not saved to the app's history or logged by the application. Hand history, outcomes, wager amounts, and balance are not sent for recommendations. The hosting provider may process your IP address and technical request metadata.</li>
+      <li><strong>Code redemption:</strong> a shared access code is sent to the operator's server for verification. After redemption, the code is saved in this browser and sent with hand-recommendation requests; it is not linked to a Google account. Anyone with the shared code can use hand recommendations. Removing access in Settings deletes the code from this browser.</li>
       <li><strong>Optional Google account and history sync:</strong> when Firebase is configured, signing in with Google automatically merges this browser's saved hand history with your account and saves later hand-history changes there. Firestore history can contain the hand and wager details listed above; your private display name is also saved to your account. Your balance, practice progress, and other preferences remain in this browser. You can sign out or clear synced history in the app; contact the privacy email to request deletion of the Firebase account or assistance with other requests. Firebase must have Google sign-in enabled, the site's domain authorized, and the app's Firestore rules published for these features to work.</li>
       <li><strong>Optional shared hand statistics:</strong> off by default and separate from analytics and Google history sync. Only future completed hands are eligible after you opt in; existing local history is not uploaded. The app sends card ranks, dealer upcard, table-rule settings, the recommendation, your recorded first action, and categorical win/loss/push result. Wager, balance, net result, final-card sequence, Google email, and Google account ID are excluded. Firebase Authentication issues a separate anonymous identifier; the server uses it to verify the submission and create a keyed duplicate-prevention receipt, then stores only aggregate scenario/action/outcome counts. Raw hand records and the anonymous identifier are not stored in those aggregates. Because aggregate counts cannot be tied back to an individual, a contribution cannot be removed individually after aggregation. You may withdraw consent to stop future sharing. Shared aggregates are for quality checks only; they are not used in the local history-based wager sizing or move advice.</li>
       <li><strong>Optional Gemini helper:</strong> it is offline by default. If you explicitly send a question to Gemini, that question and fixed public app/Rainbet reference notes are sent to Google's Gemini service to answer it. The current hand, saved history, balance, wager, Google identity, and chat transcript are not sent by this feature. Google's own terms and retention practices apply to that request.</li>
@@ -2846,6 +2847,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       <ul class="fine">
         <li><strong>Sur votre appareil :</strong> si vous utilisez le conseiller, l’historique des mains (cartes, décisions, résultats et mises), la progression d’exercice, le solde en crédits fictifs, le choix de progression et les limites de session peuvent être enregistrés dans le stockage local du navigateur. La carte estime les fréquences globales de gains, pertes et égalités à partir d’au plus 100 mains fictives récentes et affiche un intervalle de Wilson à 95 % pour le taux de gains parmi les résultats sans égalité. Le mode Auto conserve une mise de pratique de 1 % sauf si au moins 30 mises enregistrées comprennent un résultat net exact saisi explicitement et étayent un rendement historique positif ou négatif selon une borne unilatérale approximative à 95 %; il applique alors un quart de Kelly empirique plafonné pour un rendement positif, ou recommande de ne pas miser pour un rendement négatif. L’échantillon peut regrouper différentes mains ou stratégies et ne prédit pas l’avenir. Les limites du solde, de perte de session et d’exposition s’appliquent. Le résumé, le solde et l’historique ne sont pas transmis au serveur de l’application. Ils y restent jusqu’à leur suppression dans l’application ou le navigateur. Un ancien montant de solde est conservé tel quel en crédits fictifs; aucune conversion de devise n’est effectuée.</li>
         <li><strong>Requêtes au conseiller :</strong> les rangs de cartes saisis, la carte visible du croupier et les règles choisies sont transmis au serveur de l’exploitant pour calculer chaque recommandation ou réponse d’exercice. Les requêtes sont traitées en mémoire et ne sont ni enregistrées dans l’historique de l’application ni consignées par celle-ci. L’historique des mains, les résultats, les mises et le solde ne sont pas transmis pour les recommandations. L’hébergeur peut traiter l’adresse IP et les métadonnées techniques des requêtes.</li>
+        <li><strong>Utilisation d’un code :</strong> un code d’accès partagé est transmis au serveur de l’exploitant pour vérification. Après son activation, le code est enregistré dans ce navigateur et transmis avec les demandes de recommandation; il n’est pas associé à un compte Google. Toute personne ayant le code partagé peut utiliser les recommandations. La suppression de l’accès dans les paramètres efface le code de ce navigateur.</li>
         <li><strong>Compte Google et synchronisation facultative de l’historique :</strong> lorsque Firebase est configuré, la connexion avec Google fusionne automatiquement l’historique de mains de ce navigateur avec votre compte et y enregistre ensuite les changements. L’historique Firestore peut contenir les détails de mains et de mises indiqués ci-dessus; votre nom d’affichage privé est aussi enregistré dans votre compte. Le solde, la progression d’exercice et les autres préférences restent dans ce navigateur. Vous pouvez vous déconnecter ou effacer l’historique synchronisé dans l’application. Pour que ces fonctions marchent, Google doit être activé dans Firebase, le domaine du site doit être autorisé et les règles Firestore doivent être publiées.</li>
         <li><strong>Statistiques partagées facultatives sur les mains :</strong> désactivées par défaut et distinctes de l’analyse d’audience et de la synchronisation Google. Seules les mains futures terminées sont admissibles après votre consentement; l’historique local existant n’est pas téléversé. L’application transmet les rangs, la carte visible du croupier, les règles, le conseil, votre première décision enregistrée et le résultat catégoriel (gain/perte/égalité). La mise, le solde, le résultat net, la séquence finale de cartes, le courriel Google et l’identifiant du compte Google sont exclus. Firebase Authentication crée un identifiant anonyme distinct; le serveur s’en sert pour vérifier la transmission et créer un reçu pseudonyme contre les doublons, puis ne conserve que des comptes agrégés par scénario/décision/résultat. Les mains brutes et l’identifiant anonyme ne sont pas conservés dans ces agrégats. Comme les comptes agrégés ne peuvent être reliés à une personne, une contribution ne peut pas être supprimée individuellement après son agrégation. Vous pouvez retirer votre consentement pour arrêter les contributions futures. Ces statistiques servent aux vérifications de qualité et à l’amélioration des tests, pas à prédire ni à modifier les conseils selon les résultats.</li>
         <li><strong>Assistant Gemini facultatif :</strong> il est hors ligne par défaut. Si vous envoyez explicitement une question à Gemini, cette question et des notes publiques fixes sur l’application/Rainbet sont transmises au service Gemini de Google. La main actuelle, l’historique, le solde, la mise, l’identité Google et la transcription ne sont pas transmis par cette fonction. Les conditions et pratiques de conservation de Google s’appliquent.</li>
@@ -2919,6 +2921,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
     <div class="settings-layout">
       <nav class="settings-nav" aria-label="Settings sections">
         <button type="button" data-settings-target="account" aria-controls="settingsAccount" aria-pressed="true">Account</button>
+        <button type="button" data-settings-target="sponsor" aria-controls="settingsSponsor" aria-pressed="false">Code redemption</button>
         <button type="button" data-settings-target="appearance" aria-controls="settingsAppearance" aria-pressed="false">Appearance</button>
         <button type="button" data-settings-target="interface" aria-controls="settingsInterface" aria-pressed="false">Interface</button>
         <button type="button" data-settings-target="privacy" aria-controls="settingsPrivacy" aria-pressed="false">Privacy</button>
@@ -2960,6 +2963,22 @@ node .\rainbet-gemini-server.cjs</code></pre>
               <p class="fine">If Google sign-in fails, check that Google is enabled and the exact site domain is authorized; the error below identifies common Firebase setup problems. Review Google's and Firebase's privacy and retention terms. Sign-in itself does not include paid membership. Shared hand statistics remain off until a visitor separately opts in.</p>
               <p class="fine"><a href="https://firebase.google.com/docs/auth/web/google-signin" target="_blank" rel="noopener noreferrer">Firebase Google sign-in guide</a> · <a href="https://firebase.google.com/docs/firestore/security/get-started" target="_blank" rel="noopener noreferrer">Firestore Security Rules guide</a></p>
             </details>
+          </section>
+        </section>
+        <section class="settings-panel" id="settingsSponsor" data-settings-panel="sponsor" aria-labelledby="sponsorSettingsTitle" hidden>
+          <section class="settings-section">
+            <h3 id="sponsorSettingsTitle">Code redemption</h3>
+            <p class="fine">Redeem a code to use hand recommendations without Google sign-in. Access is saved only in this browser; account sync, billing, and the AI assistant are separate.</p>
+            <form id="sponsorCodeForm">
+              <label for="sponsorCodeInput">Redemption code
+                <input id="sponsorCodeInput" type="text" maxlength="64" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="sponsorCodeStatus" placeholder="Enter your code">
+              </label>
+              <div class="settings-controls">
+                <button type="submit" id="redeemSponsorCode">Redeem code</button>
+                <button type="button" class="secondary" id="removeSponsorAccess" hidden>Remove access</button>
+              </div>
+            </form>
+            <p id="sponsorCodeStatus" class="fine" aria-live="polite">Enter your redemption code.</p>
           </section>
         </section>
         <section class="settings-panel" id="settingsAppearance" data-settings-panel="appearance" aria-labelledby="appearanceSettingsTitle" hidden>
@@ -3034,7 +3053,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         <section class="settings-panel" id="settingsData" data-settings-panel="data" aria-labelledby="dataSettingsTitle" hidden>
           <section class="settings-section">
             <h3 id="dataSettingsTitle">Your data</h3>
-            <p class="fine">Hand history stays in this browser unless you sign in and sync it. Theme, spacing, motion, sound, and vibration preferences are also saved in this browser. Your private username is stored in your own Google account profile document.</p>
+            <p class="fine">Hand history stays in this browser unless you sign in and sync it. Theme, spacing, motion, sound, vibration, and code-redemption access are also saved in this browser. Your private username is stored in your own Google account profile document.</p>
             <p class="fine">Review, export, or delete saved hand history from the History section. Clearing history removes its local copy and, when signed in, the synced cloud copy.</p>
             <div class="settings-data-actions">
               <button type="button" id="settingsOpenHistory">Open hand history</button>
@@ -3054,6 +3073,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       </div>
       <button type="button" class="secondary" id="closeMembershipDialog" aria-label="Close membership options">×</button>
     </div>
+    <button type="button" class="secondary" id="openSponsorSettingsFromMembership">Have a code? Redeem without signing in</button>
     <div class="membership-options-card" id="membershipOptions" tabindex="-1" aria-labelledby="membershipOptionsTitle">
       <div class="membership-plan-heading">
         <div>
@@ -3210,6 +3230,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         : "";
       const analyticsPreferenceKey = "rainbet-analytics-consent-v1";
       const welcomeConsentKey = "rainbet-welcome-policy-consent-v1";
+      const sponsorAccessStorageKey = "rainbet-sponsor-access-code-v1";
       const balanceCurrencies = ["FAKE"];
       const legacyBalanceCurrencies = ["CAD", "USD", "EUR", "GBP", "AUD"];
       const wagerStrategyKey = "rainbet-advisor-fictional-strategy-v1";
@@ -3229,6 +3250,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       let membershipRenewalCanceled = false;
       let membershipTestAccess = false;
       let membershipLoading = false;
+      let sponsorAccessCode = "";
       let cloudProfileName = "";
       let cloudProfileSaving = false;
       let cloudProfileLoading = false;
@@ -5904,8 +5926,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
       }
 
       async function requestStrategyAdvice(cards, dealer, options, signal) {
-        let authorization = "";
-        if (typeof cloudHistoryClient !== "undefined" && cloudHistoryClient && typeof cloudHistoryClient.getBillingIdToken === "function") {
+        let authorization = sponsorAccessCode ? "Bearer " + sponsorAccessCode : "";
+        if (!authorization && typeof cloudHistoryClient !== "undefined" && cloudHistoryClient && typeof cloudHistoryClient.getBillingIdToken === "function") {
           try {
             authorization = "Bearer " + await cloudHistoryClient.getBillingIdToken();
           } catch {
@@ -5935,6 +5957,22 @@ node .\rainbet-gemini-server.cjs</code></pre>
             ? payload.error
             : "The advisor server could not calculate this hand.");
           error.status = response.status;
+          if (sponsorAccessCode && [401, 402, 403].includes(response.status)) {
+            let storageError = null;
+            try {
+              localStorage.removeItem(sponsorAccessStorageKey);
+            } catch (error) {
+              storageError = error;
+            }
+            sponsorAccessCode = "";
+            showSponsorAccessStatus(
+              storageError
+                ? "The saved redemption code was rejected, and browser storage could not be cleared: " + storageError.message
+                : "The saved redemption code is no longer valid. Enter it again in Settings.",
+              true
+            );
+            error.message = "The saved redemption code is no longer valid. Enter it again in Settings.";
+          }
           throw error;
         }
         const actions = ["HIT", "STAND", "DOUBLE", "SPLIT"];
@@ -6576,6 +6614,79 @@ node .\rainbet-gemini-server.cjs</code></pre>
         description.textContent = descriptions[section];
       }
 
+      function showSponsorAccessStatus(message, isError) {
+        byId("sponsorCodeStatus").textContent = message;
+        byId("sponsorCodeStatus").classList.toggle("error", Boolean(isError));
+        byId("removeSponsorAccess").hidden = !sponsorAccessCode;
+      }
+
+      async function redeemSponsorAccessCode() {
+        const code = byId("sponsorCodeInput").value.trim().toUpperCase();
+        if (!code) {
+          showSponsorAccessStatus("Enter your redemption code.", true);
+          return;
+        }
+        const redeemButton = byId("redeemSponsorCode");
+        redeemButton.disabled = true;
+        showSponsorAccessStatus("Checking redemption code…", false);
+        try {
+          const response = await fetch("/api/sponsor/redeem", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({code})
+          });
+          let payload;
+          try {
+            payload = await response.json();
+          } catch {
+            throw new Error("The code-redemption service returned an invalid response.");
+          }
+          if (!response.ok || !payload || payload.accessGranted !== true) {
+            throw new Error(payload && typeof payload.error === "string"
+              ? payload.error
+              : "Could not verify the redemption code.");
+          }
+          sponsorAccessCode = code;
+          byId("sponsorCodeInput").value = "";
+          try {
+            localStorage.setItem(sponsorAccessStorageKey, sponsorAccessCode);
+            showSponsorAccessStatus("Code redeemed. You can now use hand recommendations in this browser without signing in.", false);
+          } catch (error) {
+            showSponsorAccessStatus("Code redeemed for this session, but could not be saved in this browser: " + error.message, true);
+          }
+          decide(false);
+        } catch (error) {
+          showSponsorAccessStatus("Could not redeem code: " + error.message, true);
+        } finally {
+          redeemButton.disabled = false;
+        }
+      }
+
+      function initializeSponsorAccessUi() {
+        try {
+          sponsorAccessCode = localStorage.getItem(sponsorAccessStorageKey) || "";
+        } catch (error) {
+          showSponsorAccessStatus("Could not load saved code-redemption access: " + error.message, true);
+        }
+        if (sponsorAccessCode) {
+          showSponsorAccessStatus("Code redemption is active in this browser.", false);
+        }
+        byId("sponsorCodeForm").addEventListener("submit", (event) => {
+          event.preventDefault();
+          redeemSponsorAccessCode();
+        });
+        byId("removeSponsorAccess").addEventListener("click", () => {
+          try {
+            localStorage.removeItem(sponsorAccessStorageKey);
+            sponsorAccessCode = "";
+            showSponsorAccessStatus("Code redemption was removed from this browser.", false);
+            decide(false);
+          } catch (error) {
+            showSponsorAccessStatus("Could not remove code-redemption access from this browser: " + error.message, true);
+          }
+        });
+      }
+
       function readFeedbackPreference(value, name) {
         if (value === null || value === "enabled") return true;
         if (value === "disabled") return false;
@@ -6871,12 +6982,14 @@ node .\rainbet-gemini-server.cjs</code></pre>
         const settingsPanels = Array.from(dialog.querySelectorAll("[data-settings-panel]"));
         const settingsDescriptions = {
           account: "Manage your Google sign-in, private username, and saved history sync.",
+          sponsor: "Redeem or remove a code for hand recommendations in this browser.",
           appearance: "Choose colors and layout preferences for this browser.",
           interface: "Customize visible navigation shortcuts for this browser.",
           privacy: "Review optional data sharing and analytics consent.",
           practice: "Manage fictional practice credits and progression suggestions.",
           data: "See where your preferences and hand history are stored."
         };
+        initializeSponsorAccessUi();
         settingsTargets.forEach((button) => {
           button.addEventListener("click", () => {
             setActiveSettingsPanel(
@@ -6896,6 +7009,12 @@ node .\rainbet-gemini-server.cjs</code></pre>
         };
         byId("openMembership").addEventListener("click", openMembershipOptions);
         byId("openMembershipFromPrompt").addEventListener("click", openMembershipOptions);
+        byId("openSponsorSettingsFromMembership").addEventListener("click", () => {
+          membershipDialog.close();
+          openSettings();
+          settingsTargets.find((button) => button.dataset.settingsTarget === "sponsor").click();
+          byId("sponsorCodeInput").focus({preventScroll: true});
+        });
         byId("openSettingsFromHistory").addEventListener("click", openSettings);
         byId("closeSettings").addEventListener("click", () => dialog.close());
         byId("closeMembershipDialog").addEventListener("click", () => membershipDialog.close());

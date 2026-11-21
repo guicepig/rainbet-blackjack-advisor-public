@@ -2,6 +2,7 @@
 
 const http = require("node:http");
 const https = require("node:https");
+const {createHash, timingSafeEqual} = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const {actionForContext, parseRank} = require("./rainbet-strategy.cjs");
@@ -167,6 +168,13 @@ function takeRateLimit(rateWindows, client, limit, now = Date.now()) {
   window.count++;
   rateWindows.set(client, window);
   return true;
+}
+
+function sponsorCodeMatches(candidate, expected) {
+  if (typeof candidate !== "string" || !expected) return false;
+  const candidateDigest = createHash("sha256").update(candidate.trim().toUpperCase()).digest();
+  const expectedDigest = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(candidateDigest, expectedDigest);
 }
 
 function validateStrategyRequest(body) {
@@ -482,6 +490,12 @@ function createServer(options) {
   const settings = options || {};
   const environment = settings.environment || process.env.NODE_ENV || "development";
   const apiKey = settings.apiKey === undefined ? process.env.GEMINI_API_KEY : settings.apiKey;
+  const configuredSponsorCode = settings.sponsorCode === undefined
+    ? process.env.SPONSOR_CODE
+    : settings.sponsorCode;
+  const sponsorCode = typeof configuredSponsorCode === "string"
+    ? configuredSponsorCode.trim().toUpperCase()
+    : "";
   const model = settings.model || process.env.GEMINI_MODEL || defaultModel;
   const fetchImpl = settings.fetchImpl || globalThis.fetch;
   const firebaseAuthRequestImpl = settings.firebaseAuthRequestImpl || https.request;
@@ -504,6 +518,7 @@ function createServer(options) {
 
   const rateWindows = new Map();
   const strategyRateWindows = new Map();
+  const sponsorRateWindows = new Map();
   const siteStatsRateWindows = new Map();
   const requireActiveMembership = async (request) => {
     if (!billingStore) {
@@ -1071,6 +1086,46 @@ function createServer(options) {
       return;
     }
 
+    if (pathname === "/api/sponsor/redeem") {
+      if (request.method !== "POST") {
+        response.setHeader("Allow", "POST");
+        sendJson(response, 405, {error: "Use POST to redeem an access code."});
+        return;
+      }
+      if (!isAllowedAppOrigin(request)) {
+        sendJson(response, 403, {error: "Codes must be redeemed from this advisor site."});
+        return;
+      }
+      if (!sponsorCode) {
+        sendJson(response, 503, {error: "Code redemption is not configured on this server."});
+        return;
+      }
+      if ((request.headers["content-type"] || "").split(";")[0].trim().toLowerCase() !== "application/json") {
+        sendJson(response, 415, {error: "Send the redemption code as application/json."});
+        return;
+      }
+      const client = request.socket.remoteAddress || "unknown";
+      if (!takeRateLimit(sponsorRateWindows, client, 10)) {
+        sendJson(response, 429, {error: "Too many code-redemption attempts. Wait a minute before trying again."});
+        return;
+      }
+      let body;
+      try {
+        body = await readJsonBody(request);
+      } catch (error) {
+        const status = error instanceof HttpError ? error.status : 400;
+        sendJson(response, status, {error: error instanceof HttpError ? error.message : "Could not read the redemption code."});
+        return;
+      }
+      if (!body || typeof body.code !== "string" || body.code.length > 64 ||
+          !sponsorCodeMatches(body.code, sponsorCode)) {
+        sendJson(response, 403, {error: "That redemption code is not valid. Check it and try again."});
+        return;
+      }
+      sendJson(response, 200, {accessGranted: true});
+      return;
+    }
+
     if (pathname === "/healthz" && request.method === "GET") {
       response.writeHead(200, {
         "Cache-Control": "no-store",
@@ -1193,18 +1248,24 @@ function createServer(options) {
         sendJson(response, 403, {error: "Strategy requests must come from this advisor site."});
         return;
       }
-      const membership = await requireActiveMembership(request);
+      const client = request.socket.remoteAddress || "unknown";
+      if (!takeRateLimit(strategyRateWindows, client, maxStrategyRequestsPerMinute)) {
+        sendJson(response, 429, {error: "The advisor request limit was reached. Wait a minute before trying again."});
+        return;
+      }
+      const authorization = request.headers.authorization;
+      const bearerToken = typeof authorization === "string" && authorization.startsWith("Bearer ")
+        ? authorization.slice(7).trim()
+        : "";
+      const membership = sponsorCodeMatches(bearerToken, sponsorCode)
+        ? {allowed: true, sponsorAccess: true}
+        : await requireActiveMembership(request);
       if (!membership.allowed) {
         sendJson(response, membership.status, {error: membership.error});
         return;
       }
       if ((request.headers["content-type"] || "").split(";")[0].trim().toLowerCase() !== "application/json") {
         sendJson(response, 415, {error: "Send the hand and rule options as application/json."});
-        return;
-      }
-      const client = request.socket.remoteAddress || "unknown";
-      if (!takeRateLimit(strategyRateWindows, client, maxStrategyRequestsPerMinute)) {
-        sendJson(response, 429, {error: "The advisor request limit was reached. Wait a minute before trying again."});
         return;
       }
       let body;

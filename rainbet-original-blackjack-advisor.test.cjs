@@ -430,6 +430,56 @@ test("settings navigation and private usernames enforce their supported states",
   assert.equal(isValidPrivateUsername("name@example"), false);
 });
 
+test("code redemption persists browser access and refreshes the advisor", async () => {
+  const start = mainScript.indexOf("      async function redeemSponsorAccessCode()");
+  const end = mainScript.indexOf("      function initializeSponsorAccessUi()", start);
+  assert.ok(start >= 0 && end > start, "sponsor redemption handler should exist");
+  const elements = {
+    sponsorCodeInput: {value: " sponsorscode "},
+    redeemSponsorCode: {disabled: false},
+    sponsorCodeStatus: {textContent: "", classList: {toggle() {}}},
+    removeSponsorAccess: {hidden: true}
+  };
+  const saved = new Map();
+  const requests = [];
+  let refreshed = 0;
+  const handler = new Function(
+    "byId",
+    "fetch",
+    "localStorage",
+    "sponsorAccessStorageKey",
+    "showSponsorAccessStatus",
+    "decide",
+    "let sponsorAccessCode = '';\n" +
+      mainScript.slice(start, end) +
+      "return {redeemSponsorAccessCode, getSponsorAccessCode: () => sponsorAccessCode};"
+  )(
+    (id) => elements[id],
+    async (url, options) => {
+      requests.push({url, options});
+      return {ok: true, async json() { return {accessGranted: true}; }};
+    },
+    {setItem(key, value) { saved.set(key, value); }},
+    "rainbet-sponsor-access-code-v1",
+    (message, isError) => {
+      elements.sponsorCodeStatus.textContent = message;
+      elements.sponsorCodeStatus.isError = isError;
+      elements.removeSponsorAccess.hidden = false;
+    },
+    () => { refreshed++; }
+  );
+
+  await handler.redeemSponsorAccessCode();
+  assert.equal(handler.getSponsorAccessCode(), "SPONSORSCODE");
+  assert.equal(saved.get("rainbet-sponsor-access-code-v1"), "SPONSORSCODE");
+  assert.equal(requests[0].url, "/api/sponsor/redeem");
+  assert.deepEqual(JSON.parse(requests[0].options.body), {code: "SPONSORSCODE"});
+  assert.equal(elements.sponsorCodeInput.value, "");
+  assert.equal(elements.redeemSponsorCode.disabled, false);
+  assert.equal(elements.removeSponsorAccess.hidden, false);
+  assert.equal(refreshed, 1);
+});
+
 test("AI assistant shortcut is visible by default and supports a saved hidden preference", () => {
   assert.equal(readAiButtonVisibilityPreference(null), true);
   assert.equal(readAiButtonVisibilityPreference("shown"), true);
@@ -704,11 +754,11 @@ test("site stats payload validation accepts aggregate metrics and rejects malfor
   assert.equal(isValidSiteStatsPayload({...stats, topPages: [{path: "/", visitors: NaN, pageviews: 2}]}), false);
 });
 
-test("settings provide private account, appearance, interface, privacy, practice, and data sections", () => {
+test("settings provide private account, code redemption, appearance, interface, privacy, practice, and data sections", () => {
   const moduleSource = fs.readFileSync(path.join(__dirname, "rainbet-cloud-history.mjs"), "utf8");
   const firebaseConfig = fs.readFileSync(path.join(__dirname, "rainbet-firebase-config.js"), "utf8");
   const renderConfig = fs.readFileSync(path.join(__dirname, "render.yaml"), "utf8");
-  ["account", "appearance", "interface", "privacy", "practice", "data"].forEach((section) => {
+  ["account", "sponsor", "appearance", "interface", "privacy", "practice", "data"].forEach((section) => {
     assert.match(html, new RegExp(`data-settings-target="${section}"`));
     assert.match(html, new RegExp(`data-settings-panel="${section}"`));
   });
@@ -753,6 +803,11 @@ test("settings provide private account, appearance, interface, privacy, practice
   assert.match(renderConfig, /STRIPE_WEBHOOK_SECRET/);
   assert.match(renderConfig, /STRIPE_TRIAL_PRICE_ID/);
   assert.match(renderConfig, /STRIPE_MONTHLY_PRICE_ID/);
+  assert.match(renderConfig, /SPONSOR_CODE[\s\S]*SPONSORSCODE/);
+  assert.match(html, /id="sponsorCodeForm"/);
+  assert.match(html, /id="sponsorCodeInput"/);
+  assert.match(mainScript, /api\/sponsor\/redeem/);
+  assert.match(mainScript, /rainbet-sponsor-access-code-v1/);
 });
 
 test("privacy disclosures explain local data, account sync, and optional providers", () => {
@@ -782,6 +837,7 @@ test("privacy disclosures explain local data, account sync, and optional provide
   assert.match(html, /positive approximate paired Brier-improvement lower bound/);
   assert.match(html, /Never use these amounts or progressions for real-money wagers/);
   assert.match(html, /Optional membership features are processed through Stripe/);
+  assert.match(html, /Anyone with the shared code can use hand recommendations/);
   assert.match(html, /L’accès payant, lorsqu’il est configuré, nécessite une connexion Google et est traité par Stripe/);
   assert.doesNotMatch(html, /Aucun abonnement payant ni paiement n’est actuellement offert/);
   assert.match(html, /Firebase must have Google sign-in enabled, the site's domain authorized/);
@@ -803,6 +859,8 @@ test("membership purchase is reachable from navigation and the advisor paywall",
   assert.match(html, /id="membershipRequiredPrompt" hidden/);
   assert.match(html, /id="openMembershipFromPrompt">View membership options<\/button>/);
   assert.match(html, /<dialog class="settings-dialog membership-dialog" id="membershipDialog"/);
+  assert.match(html, /id="openSponsorSettingsFromMembership">Have a code\? Redeem without signing in<\/button>/);
+  assert.match(mainScript, /byId\("openSponsorSettingsFromMembership"\)\.addEventListener/);
   assert.match(html, /Google sign-in is free and does not start a subscription/i);
   assert.match(html, /id="membershipInstructions"/);
   assert.match(html, /id="membershipOptions" tabindex="-1"/);
@@ -4668,6 +4726,65 @@ test("test account allowlist grants advisor access without a Stripe membership",
   });
   assert.equal((await request("/api/billing/trial", "test-token", {acceptRecurringBilling: true})).status, 409);
   assert.equal(mock.checkoutCalls.length, 0);
+});
+
+test("code redemption unlocks hand advice without Google sign-in", async (testContext) => {
+  const mock = createBillingTestStore();
+  const server = createGeminiServer({
+    apiKey: "",
+    billingStore: mock.store,
+    sponsorCode: "SPONSORSCODE"
+  });
+  const origin = await listenForTest(testContext, server);
+  const adviceBody = {
+    cards: ["10", "6"],
+    dealer: "10",
+    options: {doubleAllowed: true, splitAllowed: true, dasRule: "unknown", afterSplit: false}
+  };
+  const noAuthAdvice = await fetch(origin + "/api/advice", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: origin},
+    body: JSON.stringify(adviceBody)
+  });
+  assert.equal(noAuthAdvice.status, 401);
+
+  const invalidCode = await fetch(origin + "/api/sponsor/redeem", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: origin},
+    body: JSON.stringify({code: "NOTTHERIGHTCODE"})
+  });
+  assert.equal(invalidCode.status, 403);
+
+  const redemption = await fetch(origin + "/api/sponsor/redeem", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: origin},
+    body: JSON.stringify({code: " sponsorscode "})
+  });
+  assert.equal(redemption.status, 200);
+  assert.deepEqual(await redemption.json(), {accessGranted: true});
+
+  const advice = await fetch(origin + "/api/advice", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Authorization: "Bearer SPONSORSCODE"
+    },
+    body: JSON.stringify(adviceBody)
+  });
+  assert.equal(advice.status, 200);
+  assert.equal((await advice.json()).action, "HIT");
+
+  const chat = await fetch(origin + "/api/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Authorization: "Bearer SPONSORSCODE"
+    },
+    body: JSON.stringify({message: "Hello"})
+  });
+  assert.equal(chat.status, 401, "the redemption code does not grant optional AI-chat access");
 });
 
 test("membership checkout requires explicit consent and validates the Google account", async (testContext) => {
