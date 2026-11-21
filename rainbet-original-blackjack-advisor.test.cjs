@@ -1094,11 +1094,14 @@ test("move follow-up panel stays in page flow to avoid covering the card table",
   assert.match(html, /What did you choose to do\?/);
 });
 
-test("navigation and advisor workflow use clear professional labels", () => {
-  assert.match(html, /<h2 id="hand-title">Blackjack decision<\/h2>/);
-  assert.match(html, /<span>1<\/span> Enter cards/);
-  assert.match(html, /<span>2<\/span> Review advice/);
-  assert.match(html, /<span>3<\/span> Record move/);
+test("navigation and advisor labels stay concise and clear", () => {
+  assert.match(html, /<h2 id="hand-title" class="visually-hidden">Blackjack decision<\/h2>/);
+  assert.doesNotMatch(html, /advisor-flow|advisor-steps/);
+  assert.match(html, /move-metric" role="group" aria-label="Recommended move"/);
+  assert.match(html, /outcome-metric" role="group" aria-label="Win, push, and loss probabilities"/);
+  assert.match(html, /advisor-explanation" hidden/);
+  assert.doesNotMatch(html, /advisor-card-guidance/);
+  assert.doesNotMatch(html, /copyAdviceSummary/);
   assert.match(html, />Hand history<\/button>/);
   assert.match(html, />Practice<\/button>/);
   assert.match(html, /<summary>Tools<\/summary>/);
@@ -1110,7 +1113,7 @@ test("advisor starts empty and offers a clearly labeled example hand", () => {
   assert.match(html, /id="playerCards" type="hidden" value=""/);
   assert.match(html, /id="dealer" type="hidden" value=""/);
   assert.match(html, /id="loadExampleHand">Try example hand<\/button>/);
-  assert.match(html, /id="advisorCardInstruction" aria-live="polite"/);
+  assert.match(html, /class="visually-hidden" id="advisorCardInstruction" aria-live="polite"/);
   assert.match(html, /id="advisorStatus" aria-live="polite"/);
   assert.match(html, /id="advisorSplitPresentation" hidden/);
   assert.match(html, /id="splitHand2Cards" type="hidden"/);
@@ -2444,9 +2447,8 @@ test("8-deck expected-value analysis compares available actions with a replaceme
 test("recommendation panel exposes visible win push and loss percentages", () => {
   assert.match(html, /id="currentHandOutcomeCard"/);
   assert.match(html, /advisor-wager-details/);
-  assert.match(html, /How this stake is calculated/);
+  assert.match(html, /<summary aria-label="Stake settings" title="Stake settings"><\/summary>/);
   assert.match(html, /id="primaryMove"/);
-  assert.match(html, /id="primaryStake"/);
   assert.match(html, /id="primaryWinChance"/);
   assert.match(html, /id="primaryPushChance"/);
   assert.match(html, /id="primaryLossChance"/);
@@ -3286,7 +3288,7 @@ test("Auto sizes fictional wagers from recorded outcomes and returns while respe
   }), /supported blackjack action/);
 });
 
-test("wager suggestion is prominent and displays a history-based estimate", () => {
+test("wager suggestion stays prominent and compact with a history-based estimate", () => {
   assert.match(html, /id="wagerRiskMode"/);
   assert.match(html, /Safe · small, tightly capped stakes/);
   assert.match(html, /Chill · balanced fictional sizing/);
@@ -3304,10 +3306,13 @@ test("wager suggestion is prominent and displays a history-based estimate", () =
   assert.match(html, /id="premiumResolvedHands"/);
   assert.match(html, /id="premiumMatches"/);
   assert.match(html, /id="premiumSessionNet"/);
-  assert.match(html, /id="copyAdviceSummary"/);
   assert.match(mainScript, /premiumQuickstartKey/);
-  assert.match(mainScript, /Recommendation summary copied/);
   assert.match(html, /class="advisor-wager-card" aria-labelledby="advisorWagerTitle"/);
+  assert.match(html, /Next stake/);
+  assert.match(html, /id="useSuggestedWager" aria-label="Use suggested stake"/);
+  assert.doesNotMatch(html, /id="primaryStake"/);
+  assert.match(html, /\.advisor-wager-card\s*\{[^}]*padding:\s*0 32px 0 0/s);
+  assert.match(html, /\.advisor-wager-result\s*\{\s*display:\s*flex;/);
   assert.match(html, /id="suggestedWagerAmount" aria-live="polite"/);
   assert.match(html, /id="wagerHistorySummary" aria-live="polite"/);
   assert.match(html, /id="outcomePatternProbability" aria-live="polite"/);
@@ -3322,7 +3327,6 @@ test("wager suggestion is prominent and displays a history-based estimate", () =
   assert.match(html, /History-based W\/L sizing assumes even-money returns/);
   assert.match(mainScript, /Auto uses a validated recent-20 W\/P\/L pattern/);
   assert.match(mainScript, /amount is chosen before cards/);
-  assert.match(html, /\.advisor-wager-card\s*\{[^}]*box-shadow/s);
   assert.match(mainScript, /renderOutcomePatternEstimate\(recentHands, outcomes\)/);
   assert.match(mainScript, /Current-hand model \(W\/P\/L = win\/push\/loss/);
   assert.match(mainScript, /handOutcomeQuarterKellyFraction/);
@@ -3508,7 +3512,6 @@ test("using the advisor automatically records the server recommendation without 
   const savedEntries = [];
   let recordCalls = 0;
   let refreshCalls = 0;
-  const flowSteps = [];
   const splitAvailability = [];
   let requestFailure = null;
   const localStorage = {
@@ -3533,7 +3536,6 @@ test("using the advisor automatically records the server recommendation without 
     "renderSuggestedWager",
     "renderCurrentHandOutcome",
     "advisorRequestErrorMessage",
-    "setAdvisorFlowStep",
     mainScript.slice(decideStart, recordConsultationStart) + "return decide;"
   )(
     (id) => elements[id],
@@ -3568,12 +3570,11 @@ test("using the advisor automatically records the server recommendation without 
     getAdvisorInputPrompt,
     () => {},
     () => {},
-    (error) => error && typeof error.message === "string" ? error.message : "The advisor request failed.",
-    (step) => { flowSteps.push(step); }
+    (error) => error && typeof error.message === "string" ? error.message : "The advisor request failed."
   );
 
   await decide(true);
-  assert.equal(flowSteps[flowSteps.length - 1], 3, "a completed recommendation advances to recording the move");
+  assert.equal(elements.moveActionPanel.hidden, false, "a completed recommendation shows the move controls");
   assert.equal(recordCalls, 1);
   assert.equal(refreshCalls, 1);
   assert.equal(elements.handResultEntry.hidden, false);

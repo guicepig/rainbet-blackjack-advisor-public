@@ -136,27 +136,6 @@
     .premium-quickstart p { margin: 0; color: var(--muted); font-size: .78rem; }
     .premium-quickstart-actions { display: flex; gap: 7px; }
     .premium-quickstart-actions button { margin: 0; white-space: nowrap; }
-    .advisor-flow {
-      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
-      margin: 10px 0 12px; padding: 0; list-style: none;
-    }
-    .advisor-flow li {
-      display: flex; align-items: center; gap: 8px; min-width: 0;
-      min-height: 44px; padding: 7px 9px;
-      border: 1px solid var(--line); border-radius: 11px;
-      background: var(--panel-raised); color: var(--muted);
-      font-size: .72rem; font-weight: 800;
-    }
-    .advisor-flow li span {
-      display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center;
-      border-radius: 50%; background: rgba(114, 224, 171, .12);
-      color: var(--accent); font-size: .68rem;
-    }
-    .advisor-flow li.active {
-      border-color: rgba(114, 224, 171, .48);
-      background: linear-gradient(145deg, rgba(114, 224, 171, .12), rgba(23, 34, 30, .8));
-      color: #ecf9f1;
-    }
     .advisor-session-strip {
       display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
       margin: 12px 0 14px;
@@ -168,7 +147,6 @@
     .advisor-session-metric span { display: block; color: var(--muted); font-size: .66rem; }
     .advisor-session-metric strong { display: block; margin-top: 3px; font-size: 1rem; font-variant-numeric: tabular-nums; }
     .advisor-live-action-row { display: flex; align-items: center; gap: 8px; }
-    .copy-advice-button { min-height: 32px !important; margin: 0 0 4px !important; padding: 5px 9px !important; font-size: .72rem !important; }
     .hero-actions { display: grid; flex: 0 0 auto; justify-items: end; gap: 10px; margin-left: auto; }
     .header-balance {
       display: grid; gap: 2px; min-width: 145px; padding: 9px 13px;
@@ -514,9 +492,8 @@
     .advisor-advanced summary { color: #c8ecd4; font-size: .85rem; font-weight: 750; cursor: pointer; }
     .advisor-advanced .checks { margin-top: 12px; }
     .advisor-live-advice {
-      display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px;
-      margin: 8px 0 12px; padding: 10px 14px; border: 1px solid #3b644d; border-radius: 14px;
-      background: radial-gradient(ellipse at 92% 8%, rgba(75, 182, 121, .14), transparent 50%), linear-gradient(145deg, #18271e, #111a15);
+      display: flex; flex-direction: column; gap: 5px;
+      margin: 4px 0 6px; padding: 0; border: 0; background: transparent;
     }
     .sticky-advisor-recommendation {
       position: fixed; z-index: 48; left: 50%; bottom: 18px;
@@ -565,22 +542,18 @@
     }
     .advisor-live-reason { margin: 0; color: #c5d0ca; font-size: .8rem; line-height: 1.35; }
     .advisor-decision-metrics {
-      grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: minmax(130px, .8fr) minmax(160px, 1fr) minmax(280px, 1.7fr);
-      gap: 9px;
-      margin: 2px 0;
+      grid-template-columns: minmax(90px, .7fr) minmax(190px, 1.3fr);
+      align-items: center; gap: 10px;
+      margin: 0;
     }
     .advisor-decision-metric {
       min-width: 0;
-      padding: 10px 12px;
-      border: 1px solid rgba(154, 207, 170, .24);
-      border-radius: 12px;
-      background: linear-gradient(145deg, rgba(31, 65, 40, .72), rgba(11, 24, 15, .72));
+      padding: 0; border: 0; border-radius: 0; background: transparent;
     }
     .advisor-decision-metric span {
       display: block;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
       color: #b4c8b8;
       font-size: .62rem;
       font-weight: 850;
@@ -590,21 +563,21 @@
     .advisor-decision-metric strong {
       display: block;
       color: #effff2;
-      font-size: clamp(1.05rem, 2vw, 1.45rem);
+      font-size: clamp(1rem, 1.8vw, 1.3rem);
       font-variant-numeric: tabular-nums;
       line-height: 1.05;
     }
-    .advisor-decision-metric.move-metric strong { color: #a8f0bd; }
-    .advisor-decision-metric.stake-metric strong { color: #f1d891; }
-    .advisor-decision-metric.outcome-metric { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
-    .advisor-decision-metric.outcome-metric > span { grid-column: 1 / -1; margin: 0; }
-    .advisor-decision-metric.outcome-metric div { text-align: center; }
+    .advisor-decision-metric.move-metric > span,
+    .advisor-decision-metric.outcome-metric > span { display: none; }
+    .advisor-decision-metric.move-metric strong { color: #a8f0bd; font-size: 1.5rem; }
+    .advisor-decision-metric.outcome-metric { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; }
+    .advisor-decision-metric.outcome-metric div { display: flex; align-items: baseline; justify-content: center; gap: 5px; }
     .advisor-decision-metric.outcome-metric div span {
       margin: 0;
       color: #c1cdbf;
       font-size: .58rem;
     }
-    .advisor-decision-metric.outcome-metric div strong { font-size: 1rem; }
+    .advisor-decision-metric.outcome-metric div strong { font-size: .9rem; }
     .advisor-outcome-chances {
       display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
       margin: 8px 0 5px;
@@ -617,29 +590,26 @@
     .advisor-outcome-chances strong { color: #dff7e5; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
     .advisor-live-insurance { margin: 3px 0 0; color: var(--muted); font-size: .72rem; }
     .advisor-wager-card {
-      grid-column: 1 / -1; margin-top: 6px; padding: 16px;
-      border: 1px solid rgba(120, 213, 155, .72); border-radius: 18px;
-      background: radial-gradient(ellipse at 92% 0, rgba(89, 205, 132, .2), transparent 48%), linear-gradient(145deg, #193323, #101b14);
-      box-shadow: 0 12px 28px rgba(0, 0, 0, .24), inset 0 1px rgba(230, 255, 236, .06);
+      position: relative; margin: 0; padding: 0 32px 0 0; border: 0; background: transparent;
     }
     .advisor-wager-card .advisor-pattern-card { display: none; }
     .advisor-wager-history { max-width: 72ch; }
-    .advisor-wager-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .advisor-wager-kicker { margin: 0 0 3px; color: #a7dcb6; font-size: .64rem; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
-    .advisor-wager-title { margin: 0; color: #effff2; font-size: 1.05rem; }
-    .advisor-wager-cap-badge { flex: 0 0 auto; padding: 5px 9px; border: 1px solid rgba(150, 218, 164, .42); border-radius: 999px; color: #c8f2d0; font-size: .65rem; font-weight: 800; }
+    .advisor-wager-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+    .advisor-wager-title { margin: 0; color: #b7cfc0; font-size: .68rem; font-weight: 800; }
     .advisor-wager-result {
-      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px;
-      margin: 12px 0 8px; padding: 12px 14px; border: 1px solid rgba(149, 220, 163, .25);
-      border-radius: 14px; background: rgba(5, 14, 8, .48);
+      display: flex; align-items: center; gap: 9px;
+      margin: 0; padding: 0; border: 0; background: transparent;
     }
-    .advisor-wager-result-label { display: block; color: #b7cfc0; font-size: .72rem; }
-    .advisor-wager-result strong { display: block; margin-top: 2px; color: #a8f0bd; font-size: clamp(1.5rem, 3vw, 2rem); font-variant-numeric: tabular-nums; line-height: 1.1; }
-    .advisor-wager-result button { margin: 0; white-space: nowrap; }
+    .advisor-wager-result strong { display: block; min-width: 4ch; color: #a8f0bd; font-size: 1rem; font-variant-numeric: tabular-nums; line-height: 1.1; text-align: right; }
+    .advisor-wager-result button { min-height: 30px; margin: 0; padding: 5px 8px; font-size: .68rem; white-space: nowrap; }
     .advisor-wager-guidance { margin: 7px 0; color: #d6e5d9; font-size: .76rem; line-height: 1.45; }
     .advisor-wager-history { margin: 7px 0; padding: 8px 10px; border-left: 2px solid rgba(160, 205, 168, .56); background: rgba(5, 14, 8, .25); color: #bbcabd; font-size: .68rem; line-height: 1.4; }
-    .advisor-wager-details { margin-top: 8px; border-top: 1px solid rgba(160, 205, 168, .16); }
-    .advisor-wager-details summary { padding: 9px 0 2px; color: #d0e6d5; font-size: .72rem; font-weight: 800; cursor: pointer; }
+    .advisor-wager-details { margin: 0; }
+    .advisor-wager-details summary { position: absolute; top: 0; right: 0; width: 30px; min-height: 30px; padding: 6px; color: var(--muted); font-size: .72rem; cursor: pointer; list-style: none; }
+    .advisor-wager-details summary::-webkit-details-marker { display: none; }
+    .advisor-wager-details summary::before { content: "⚙"; }
+    .advisor-explanation { display: none !important; }
+    .advisor-status:not(.error) { display: none; }
     .advisor-wager-details[open] summary { margin-bottom: 6px; }
     .advisor-pattern-card { margin: 10px 0 0; padding: 12px; border: 1px solid rgba(152, 187, 221, .32); border-radius: 14px; background: linear-gradient(145deg, rgba(20, 32, 47, .8), rgba(11, 19, 29, .72)); }
     .advisor-pattern-card h4 { margin: 0; color: #e5f0ff; font-size: .88rem; }
@@ -666,21 +636,21 @@
     .advisor-wager-controls input, .advisor-wager-controls select { width: 100%; min-height: 40px; margin: 0; padding: 7px 9px; font-size: .82rem; }
     .advisor-wager-note { margin: 8px 0 0; color: #aebcaf; font-size: .66rem; line-height: 1.45; }
     .move-action-panel {
-      margin: 14px 0; padding: 14px;
+      margin: 10px 0; padding: 10px;
       border: 1px solid rgba(123, 194, 139, .62); border-radius: 16px;
       background: rgba(13, 30, 19, .96); box-shadow: 0 12px 30px rgba(0, 0, 0, .35), 0 0 18px rgba(90, 177, 105, .12);
       backdrop-filter: blur(14px); animation: move-followup-enter 320ms ease-out both;
     }
-    .move-action-heading { margin: 0 0 10px; color: #e5f6e8; font-size: .9rem; font-weight: 850; }
+    .move-action-heading { margin: 0 0 7px; color: #e5f6e8; font-size: .85rem; font-weight: 850; }
     .move-outcome-estimate {
-      display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 8px 10px;
+      display: flex; align-items: center; gap: 10px; margin: 0 0 7px; padding: 6px 8px;
       border: 1px solid var(--line); border-radius: 10px; background: var(--panel-raised);
     }
-    .move-outcome-estimate > span { color: var(--muted); font-size: .67rem; font-weight: 800; }
-    .move-outcome-chances { display: grid; flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .move-outcome-estimate > span { color: var(--muted); font-size: .63rem; font-weight: 800; }
+    .move-outcome-chances { display: grid; flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
     .move-outcome-chances div { display: grid; justify-items: center; gap: 1px; }
     .move-outcome-chances span { color: var(--muted); font-size: .62rem; font-weight: 750; text-transform: uppercase; }
-    .move-outcome-chances strong { color: var(--text); font-size: .92rem; font-variant-numeric: tabular-nums; }
+    .move-outcome-chances strong { color: var(--text); font-size: .85rem; font-variant-numeric: tabular-nums; }
     .move-action-buttons { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
     .move-action-buttons button {
       min-height: 44px; margin: 0; padding: 8px 10px; border: 1px solid #45664e;
@@ -860,35 +830,30 @@
       .quick-nav-more summary { min-height: 34px; padding: 6px 10px; font-size: .76rem; }
       .panel { margin-top: 8px; padding: 14px; }
       .panel h2 { margin-bottom: 8px; }
-      .advisor-flow { gap: 5px; }
-      .advisor-flow li { min-height: 40px; gap: 5px; padding: 6px; font-size: .64rem; }
-      .advisor-flow li span { width: 22px; height: 22px; }
       .advisor-live-advice {
-        position: static; grid-template-columns: minmax(0, 1fr);
-        gap: 10px; margin: 7px 0 9px; padding: 8px 10px; border-radius: 11px;
-        background-color: rgba(16, 29, 20, .97);
+        position: static; display: flex; flex-direction: column;
+        gap: 5px; margin: 4px 0 6px; padding: 0; border: 0; border-radius: 0;
+        background: transparent;
       }
       .advisor-live-advice > * { min-width: 0; }
       .advisor-live-advice > div:nth-of-type(2) { display: none; }
       .advisor-live-action { font-size: 1.05rem; }
       .advisor-live-hand { font-size: .74rem; }
       .advisor-decision-metrics {
-        grid-template-columns: 1fr 1fr;
-        gap: 7px;
+        grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr);
+        gap: 8px;
       }
-      .advisor-decision-metric { padding: 8px 9px; }
-      .advisor-decision-metric.outcome-metric {
-        grid-column: 1 / -1;
-        grid-template-columns: repeat(3, 1fr);
-      }
+      .advisor-decision-metric { padding: 0; }
+      .advisor-decision-metric.outcome-metric { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .advisor-live-reason { font-size: .7rem; }
       .advisor-live-insurance { font-size: .65rem; }
-      .advisor-wager-card { padding: 12px; }
-      .advisor-wager-kicker, .advisor-wager-cap-badge, .advisor-wager-guidance, .advisor-wager-history, .advisor-wager-note {
+      .advisor-wager-card { padding: 0 32px 0 0; }
+      .advisor-wager-guidance, .advisor-wager-history, .advisor-wager-note {
         display: none;
       }
-      .advisor-wager-result { margin: 0; padding: 8px 10px; }
-      .advisor-wager-title { font-size: .82rem; }
+      .advisor-wager-title { font-size: .68rem; }
+      .advisor-wager-result { gap: 6px; }
+      .advisor-wager-result button { width: auto; }
       .advisor-wager-controls { gap: 8px; }
       .advisor-wager-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .advisor-wager-controls label { font-size: .68rem; }
@@ -908,7 +873,6 @@
       .advisor-zone-heading { gap: 4px; margin-bottom: 4px; }
       .advisor-zone-select { min-height: 27px; padding: 4px 7px; font-size: .59rem; }
       .advisor-card-controls { margin-top: 8px; padding: 11px; }
-      .advisor-card-guidance { display: none; }
       .advisor-controls-heading { margin-bottom: 6px; }
       .advisor-controls-heading button { min-height: 29px; padding: 4px 8px; font-size: .68rem; }
       .advisor-card-controls .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -1011,10 +975,7 @@
       color: #e8edf3;
     }
     input::placeholder { color: #8794a5; }
-    .advisor-live-advice {
-      border-color: #46566b;
-      background: radial-gradient(ellipse at 92% 8%, rgba(105, 132, 170, .11), transparent 50%), linear-gradient(145deg, #202b39, #18212d);
-    }
+    .advisor-live-advice { border: 0; background: transparent; }
     .advisor-live-action { color: #c4d5ed; }
     .advisor-live-hand, .move-followup h3, .move-followup-response { color: #e1e8f1; }
     .advisor-live-reason { color: #c4cedb; }
@@ -1192,8 +1153,8 @@
       .suit-picker button { width: 44px; min-width: 44px; min-height: 44px; }
       .advisor-zone-select { min-height: 40px; padding: 7px 9px; font-size: .68rem; }
       .advisor-card-remove { width: 30px; min-height: 30px; }
-      .advisor-wager-result { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-      .advisor-wager-result button { width: 100%; }
+      .advisor-wager-result { gap: 6px; }
+      .advisor-wager-result button { width: auto; }
       .advisor-wager-controls { grid-template-columns: minmax(0, 1fr); }
       .move-action-panel { bottom: max(5px, env(safe-area-inset-bottom)); }
       .move-action-buttons button { min-height: 42px; font-size: .74rem; }
@@ -1204,7 +1165,6 @@
       .hero-copy h1 { font-size: clamp(.98rem, 4vw, 1.2rem); }
       .header-actions-row { gap: 5px; }
       .header-actions-row button { min-height: 40px; padding: 6px 8px; font-size: .7rem; }
-      .advisor-steps { display: none; }
       .advisor-player-zones { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .advisor-player-zones .advisor-card-zone:nth-child(3) { grid-column: 1 / -1; }
       .advisor-card-item, .advisor-empty-card { width: 50px; height: 70px; }
@@ -1560,6 +1520,7 @@
       box-shadow: 0 12px 30px rgba(0, 0, 0, .2);
     }
     .panel h2 { font-size: 1.2rem; }
+    .panel[data-feature-panel="advisor"] { padding: 16px clamp(16px, 3vw, 24px) 18px; }
     button:not(.secondary) {
       border-color: var(--theme-button-start, #607998);
       background: var(--theme-button-start, #607998);
@@ -1588,13 +1549,13 @@
       #googleHistorySignIn,
       #googleHistoryHeaderAccount,
       .quick-nav-more,
-      .advisor-steps,
       .sticky-advisor-recommendation { display: none !important; }
       .hero-copy h1 { font-size: clamp(1rem, 3.7vw, 1.35rem); }
       .hero-actions { gap: 0; }
       .header-actions-row { gap: 0; }
       .header-actions-row button { min-height: 36px; padding: 7px 9px; }
       .panel { margin-top: 8px; padding: 14px; }
+      .panel[data-feature-panel="advisor"] { padding: 10px; }
       .premium-quickstart { grid-template-columns: 38px 1fr; }
       .premium-quickstart-actions { grid-column: 1 / -1; }
       .premium-quickstart-actions button { flex: 1; }
@@ -1655,8 +1616,7 @@
     </nav>
 
     <section class="panel" data-feature-panel="advisor" aria-labelledby="hand-title">
-      <h2 id="hand-title">Blackjack decision</h2>
-      <p class="fine advisor-steps">Enter the visible cards, review the recommendation, then record the move you chose.</p>
+      <h2 id="hand-title" class="visually-hidden">Blackjack decision</h2>
       <section class="premium-quickstart" id="premiumQuickstart" aria-label="Quick start">
         <span class="premium-quickstart-badge" aria-hidden="true">3</span>
         <div>
@@ -1668,24 +1628,14 @@
           <button type="button" class="secondary" id="dismissPremiumQuickstart">Dismiss</button>
         </div>
       </section>
-      <ol class="advisor-flow" aria-label="Advisor workflow">
-        <li id="advisorFlowStep1" class="active"><span>1</span> Enter cards</li>
-        <li id="advisorFlowStep2"><span>2</span> Review advice</li>
-        <li id="advisorFlowStep3"><span>3</span> Record move</li>
-      </ol>
       <section class="advisor-live-advice" aria-label="Current strategy recommendation" aria-live="polite">
         <div class="advisor-decision-metrics" aria-label="Primary advisor decisions">
-          <div class="advisor-decision-metric move-metric">
-            <span>Recommended move</span>
-            <strong id="primaryMove">CHECKING</strong>
-            <button type="button" class="secondary copy-advice-button" id="copyAdviceSummary" hidden>Copy summary</button>
+          <div class="advisor-decision-metric move-metric" role="group" aria-label="Recommended move">
+            <span>Move</span>
+            <strong id="primaryMove">—</strong>
           </div>
-          <div class="advisor-decision-metric stake-metric">
-            <span>Next-hand stake</span>
-            <strong id="primaryStake">—</strong>
-          </div>
-          <div class="advisor-decision-metric outcome-metric">
-            <span>Next-hand outcome estimate</span>
+          <div class="advisor-decision-metric outcome-metric" role="group" aria-label="Win, push, and loss probabilities">
+            <span>Move odds</span>
             <div><span>Win</span><strong id="primaryWinChance">—</strong></div>
             <div><span>Push</span><strong id="primaryPushChance">—</strong></div>
             <div><span>Loss</span><strong id="primaryLossChance">—</strong></div>
@@ -1693,14 +1643,14 @@
         </div>
         <div>
           <p class="visually-hidden" id="action" hidden>CHECKING</p>
-          <p class="advisor-live-hand" id="handSummary">Hard 16 vs. dealer 10</p>
+          <p class="advisor-live-hand" id="handSummary"></p>
           <p class="fine advisor-status" id="advisorStatus" aria-live="polite"></p>
           <div class="membership-required-prompt" id="membershipRequiredPrompt" hidden>
             <p><strong>Unlock the full advisor:</strong> sign in with Google, then choose $1 for 7 days followed by $10/month, or start $10/month now. Cancel before renewal to avoid the next charge.</p>
             <button type="button" id="openMembershipFromPrompt">View membership options</button>
           </div>
-          <details class="advisor-explanation">
-            <summary>Why this move?</summary>
+          <details class="advisor-explanation" hidden>
+            <summary>Why?</summary>
             <p class="advisor-live-reason" id="reason">The private advisor server will calculate a recommendation for this hand.</p>
             <div class="advisor-outcome-chances" id="currentHandOutcomeCard" aria-label="Estimated outcome chances">
               <div><span>Win</span><strong id="currentHandWinChance">—</strong></div>
@@ -1711,28 +1661,23 @@
             <p class="fine" id="decisionAnalysis" aria-live="polite"></p>
             <p class="advisor-live-insurance" id="insurance">Insurance: not offered for this upcard.</p>
           </details>
-          <details class="advisor-history-details">
-            <summary>Past decisions for this hand</summary>
+          <details class="advisor-history-details" hidden>
+            <summary>History</summary>
             <p class="fine" id="historyInsight" aria-live="polite">Past decisions are compared for this exact setup. Validated outcome history can separately inform the fictional pre-deal stake.</p>
           </details>
         </div>
         <section class="advisor-wager-card" aria-labelledby="advisorWagerTitle">
           <div class="advisor-wager-heading">
             <div>
-              <p class="advisor-wager-kicker">Practice support · fictional credits</p>
-              <h3 class="advisor-wager-title" id="advisorWagerTitle">Next-hand wager suggestion</h3>
+              <h3 class="advisor-wager-title" id="advisorWagerTitle">Next stake</h3>
             </div>
-            <span class="advisor-wager-cap-badge">Balance &amp; session capped</span>
-          </div>
-          <div class="advisor-wager-result">
-            <div>
-              <span class="advisor-wager-result-label">Suggested pre-deal stake</span>
+            <div class="advisor-wager-result">
               <strong id="suggestedWagerAmount" aria-live="polite">—</strong>
+              <button type="button" class="secondary" id="useSuggestedWager" aria-label="Use suggested stake" disabled>Use</button>
             </div>
-            <button type="button" class="secondary" id="useSuggestedWager" disabled>Use for next hand</button>
           </div>
           <details class="advisor-wager-details">
-            <summary>How this stake is calculated</summary>
+            <summary aria-label="Stake settings" title="Stake settings"></summary>
             <p class="advisor-wager-guidance" id="suggestedWagerText" aria-live="polite">Fictional suggestions are off. Enable them in Settings.</p>
             <p class="advisor-wager-history" id="wagerHistorySummary" aria-live="polite">The history-based estimate appears here with its sample size and uncertainty range.</p>
           <section class="advisor-pattern-card" aria-labelledby="outcomePatternTitle">
@@ -1796,14 +1741,13 @@
       <input id="dealer" type="hidden" value="">
       <div class="advisor-card-controls" id="advisorCardControls">
         <div class="advisor-controls-heading">
-          <h3>Enter your cards</h3>
+          <h3 class="visually-hidden">Enter your cards</h3>
           <div class="advisor-controls-actions">
             <button type="button" class="secondary" id="loadExampleHand">Try example hand</button>
             <button type="button" class="secondary" id="clearAdvisorCards" aria-label="Clear all cards">Clear</button>
           </div>
         </div>
-        <p class="fine advisor-card-guidance">Start with the dealer upcard and your two starting cards. Tap a table area to choose where the card goes; the rank and suit controls move into view. Add each card, then get advice once the hand is complete.</p>
-        <p class="fine" id="advisorCardInstruction" aria-live="polite">Adding cards to your starting hand. Choose a rank and suit, then add the card.</p>
+        <p class="visually-hidden" id="advisorCardInstruction" aria-live="polite">Adding cards to your starting hand. Choose a rank and suit, then add the card.</p>
         <div class="grid">
           <input id="advisorCardTarget" type="hidden" value="player">
           <label>Rank
@@ -1836,7 +1780,7 @@
           </div>
           <div class="advisor-cards" id="advisorDealerCards" role="list" aria-label="Dealer upcard"></div>
         </div>
-        <div class="advisor-table-divider">BASIC STRATEGY PREVIEW · NO BETS</div>
+        <div class="advisor-table-divider" aria-hidden="true"></div>
         <div class="advisor-seat">
           <p class="advisor-seat-title">Your cards</p>
           <div class="advisor-player-zones" id="advisorPlayerZones">
@@ -1878,9 +1822,9 @@
         </div>
       </div>
       <section class="move-action-panel" id="moveActionPanel" aria-label="Record your move" hidden>
-        <p class="move-action-heading" id="moveActionHeading">What did you do?</p>
+        <p class="move-action-heading visually-hidden" id="moveActionHeading">What did you do?</p>
         <div class="move-outcome-estimate" role="group" aria-label="Estimated outcome chances for the recommended move">
-          <span>Recommended move outcome</span>
+          <span class="visually-hidden">Recommended move outcome</span>
           <div class="move-outcome-chances">
             <div><span>Win</span><strong id="moveWinChance">—</strong></div>
             <div><span>Push</span><strong id="movePushChance">—</strong></div>
@@ -3732,16 +3676,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
             byId("premiumQuickstart").hidden = localStorage.getItem(premiumQuickstartKey) === "dismissed";
           } catch {}
         }
-        if (byId("copyAdviceSummary")) byId("copyAdviceSummary").addEventListener("click", async () => {
-          const summary = "Move: " + byId("action").textContent + "\nHand: " +
-            byId("handSummary").textContent + "\nReason: " + byId("reason").textContent;
-          try {
-            await navigator.clipboard.writeText(summary);
-            byId("advisorCardStatus").textContent = "Recommendation summary copied.";
-          } catch {
-            byId("advisorCardStatus").textContent = "Could not copy automatically. Select the hand and recommendation text instead.";
-          }
-        });
         document.querySelectorAll("[data-advisor-suit]").forEach((button) => {
           button.addEventListener("click", () => {
             selectedAdvisorSuit = button.dataset.advisorSuit;
@@ -5552,13 +5486,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
           ". DOUBLE probabilities assume one additional card and a doubled exposure. This is a rule-based estimate with replacement, not a learned guarantee; it does not track prior hands or model splits, surrender, side bets, or unpublished table rules.";
       }
 
-      function setAdvisorFlowStep(step) {
-        for (let index = 1; index <= 3; index++) {
-          const item = byId("advisorFlowStep" + index);
-          if (item) item.classList.toggle("active", index === step);
-        }
-      }
-
       async function decide(recordConsultation) {
         if (byId("membershipRequiredPrompt")) byId("membershipRequiredPrompt").hidden = true;
         if (strategyRequestState.controller) strategyRequestState.controller.abort();
@@ -5569,12 +5496,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
         try {
           const inputPrompt = getAdvisorInputPrompt(byId("playerCards").value, byId("dealer").value);
           if (inputPrompt) {
-            setAdvisorFlowStep(1);
             setSplitInputAvailability(false);
             byId("action").textContent = "CHECK INPUT";
-            if (byId("copyAdviceSummary")) byId("copyAdviceSummary").hidden = true;
             byId("reason").textContent = inputPrompt;
-            byId("handSummary").textContent = "Waiting for a complete starting hand";
+            byId("handSummary").textContent = "";
             byId("advisorStatus").textContent = inputPrompt;
             byId("advisorStatus").classList.remove("error");
             byId("decisionAnalysis").textContent = "";
@@ -5641,8 +5566,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
             afterSplit
           };
           byId("action").textContent = "CHECKING";
-          setAdvisorFlowStep(2);
-          if (byId("copyAdviceSummary")) byId("copyAdviceSummary").hidden = true;
           byId("reason").textContent = "Getting the recommendation from the private advisor server.";
           byId("decisionAnalysis").textContent = "";
           byId("handSummary").textContent = "";
@@ -5670,7 +5593,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
           if (result.hand.total <= 21) {
             byId("moveActionHeading").textContent = "What did you choose to do?";
             byId("moveActionPanel").scrollIntoView({behavior: "smooth", block: "nearest"});
-            setAdvisorFlowStep(3);
           }
           if (result.hand.total > 21) byId("moveFollowup").hidden = true;
           byId("insurance").textContent = dealer.rank === "A"
@@ -5688,7 +5610,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
             if (byId("primaryMove")) byId("primaryMove").textContent = result.alternativeAction
               ? result.action + " / " + result.alternativeAction
               : result.action;
-            if (byId("copyAdviceSummary")) byId("copyAdviceSummary").hidden = false;
             byId("reason").textContent = result.explanation;
             byId("decisionAnalysis").textContent = result.analysis
               ? formatDecisionAnalysis(result.analysis)
@@ -5748,7 +5669,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
             byId("action").textContent = "SIGN IN";
             if (byId("primaryMove")) byId("primaryMove").textContent = "SIGN IN";
             byId("handSummary").textContent = "Google sign-in required";
-            setAdvisorFlowStep(1);
           }
           byId("reason").textContent = errorMessage;
           byId("advisorStatus").textContent = errorMessage;
@@ -5914,8 +5834,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
         const amountDisplay = byId("suggestedWagerAmount");
         const historyDisplay = byId("wagerHistorySummary");
         if (!message || !applyButton || !amountDisplay || !historyDisplay) return;
-        const primaryStake = byId("primaryStake");
-        if (primaryStake) primaryStake.textContent = "—";
         suggestedWagerAmount = null;
         applyButton.disabled = true;
         amountDisplay.textContent = "—";
@@ -6030,7 +5948,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
           suggestedWagerAmount = cap.amount;
           applyButton.disabled = false;
           amountDisplay.textContent = formatManualBalance(cap.amount);
-          if (primaryStake) primaryStake.textContent = formatManualBalance(cap.amount);
           const strategyNames = {
             flat: "Flat",
             martingale: "Martingale",
