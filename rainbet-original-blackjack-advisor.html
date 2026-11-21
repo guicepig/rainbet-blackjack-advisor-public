@@ -1612,7 +1612,7 @@
       <button type="button" data-feature-target="advisor" aria-pressed="true">Advisor</button>
       <button type="button" data-feature-target="history" aria-pressed="false">Hand history</button>
       <button type="button" data-feature-target="practice" aria-pressed="false">Practice</button>
-      <button type="button" class="membership-nav-button" id="openMembership">Membership</button>
+      <button type="button" class="membership-nav-button" id="openMembership" aria-label="View membership plans: $1 for 7 days, then $10 per month">Join · $1 intro</button>
       <details class="quick-nav-more">
         <summary>Tools</summary>
         <div class="quick-nav-more-menu">
@@ -1855,7 +1855,7 @@
           <table>
             <caption>Estimated outcome by move</caption>
             <thead>
-              <tr><th scope="col">Move</th><th scope="col">Win</th><th scope="col">Push</th><th scope="col">Loss</th></tr>
+              <tr><th scope="col">Move</th><th scope="col">Win</th><th scope="col">Push</th><th scope="col">Loss</th><th scope="col" title="Expected net per initial wager">EV / 1×</th></tr>
             </thead>
             <tbody id="actionOutcomeRows"></tbody>
           </table>
@@ -2493,7 +2493,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         <section class="settings-panel" id="settingsAccount" data-settings-panel="account" aria-labelledby="cloud-history-title">
           <section class="settings-section helper-setup">
             <h3 id="cloud-history-title">Google account and history sync</h3>
-            <p class="fine">Your account can restore synced hand history across devices, keep a private display name, and show your membership status. After sign-in, this browser's history is merged automatically and future history changes sync to your account. Membership access is checked separately; signing in alone does not grant paid access. Synced records can include cards, actions, outcomes, wager amounts, and net results. Do not enter Rainbet passwords or other account credentials here.</p>
+            <p class="fine">Your account can restore synced hand history across devices and keep a private display name. After sign-in, this browser's history is merged automatically and future history changes sync to your account. Synced records can include cards, actions, outcomes, wager amounts, and net results. Do not enter Rainbet passwords or other account credentials here.</p>
             <p class="fine">New accounts are created when you continue with Google for the first time. Existing Google accounts can sign in; no separate website password is needed.</p>
             <p id="googleHistoryAccount" class="fine" aria-live="polite"></p>
             <button type="button" id="googleHistorySettingsSignIn" hidden disabled>Sign in with Google</button>
@@ -2510,21 +2510,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
             <div class="settings-controls">
               <button type="button" class="secondary" id="googleHistorySync" hidden disabled>Sync history</button>
               <button type="button" class="secondary" id="googleHistorySignOut" hidden>Sign out</button>
-            </div>
-            <div class="membership-options-card" id="membershipOptions" tabindex="-1" aria-labelledby="membershipOptionsTitle">
-              <h3 id="membershipOptionsTitle">Membership options</h3>
-              <p class="fine">Intro offer: $1 USD today for 7 days, then $10 USD/month starting on day 8 unless canceled before renewal. Monthly plan: $10 USD now, renewing monthly until canceled. Taxes may apply. Sign in with Google first, then choose a plan to continue to secure Stripe checkout.</p>
-              <label class="fine" for="membershipBillingConsent">
-                <input id="membershipBillingConsent" type="checkbox">
-                I understand and agree to the recurring billing and cancellation terms for the plan I select.
-              </label>
-              <p id="membershipStatus" class="fine" aria-live="polite">Sign in with Google to view or manage membership.</p>
-              <div class="settings-controls">
-                <button type="button" id="startTrialMembership" hidden disabled>Start $1 intro week</button>
-                <button type="button" id="upgradeMembership" hidden disabled>Upgrade for $10/month</button>
-                <button type="button" class="secondary" id="cancelUpcomingMembership" hidden disabled>Cancel upcoming $10/month renewal</button>
-                <button type="button" class="secondary" id="manageMembership" hidden disabled>Manage subscription</button>
-              </div>
             </div>
             <p id="googleHistoryStatus" class="fine" aria-live="polite">Checking cloud-sync setup…</p>
             <details>
@@ -2620,6 +2605,32 @@ node .\rainbet-gemini-server.cjs</code></pre>
             </div>
           </section>
         </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="settings-dialog membership-dialog" id="membershipDialog" aria-labelledby="membershipDialogTitle">
+    <div class="settings-heading">
+      <div class="settings-heading-copy">
+        <h2 id="membershipDialogTitle">Membership</h2>
+        <p class="fine">Choose a plan to unlock membership features. Signing in alone does not grant paid access; sign-in is required before secure checkout.</p>
+      </div>
+      <button type="button" class="secondary" id="closeMembershipDialog" aria-label="Close membership options">×</button>
+    </div>
+    <div class="membership-options-card" id="membershipOptions" tabindex="-1" aria-labelledby="membershipOptionsTitle">
+      <h3 id="membershipOptionsTitle">Choose a plan</h3>
+      <p class="fine">Intro offer: $1 USD today for 7 days, then $10 USD/month starting on day 8 unless canceled before renewal. Monthly plan: $10 USD now, renewing monthly until canceled. Taxes may apply.</p>
+      <button type="button" id="membershipSignIn" hidden disabled>Continue with Google</button>
+      <label class="fine" id="membershipBillingConsentLabel" for="membershipBillingConsent" hidden>
+        <input id="membershipBillingConsent" type="checkbox">
+        I understand and agree to the recurring billing and cancellation terms for the plan I select.
+      </label>
+      <p id="membershipStatus" class="fine" aria-live="polite">Continue with Google, accept the billing terms, and choose a plan.</p>
+      <div class="settings-controls">
+        <button type="button" id="startTrialMembership" hidden disabled>Start $1 intro week</button>
+        <button type="button" id="upgradeMembership" hidden disabled>Upgrade for $10/month</button>
+        <button type="button" class="secondary" id="cancelUpcomingMembership" hidden disabled>Cancel upcoming $10/month renewal</button>
+        <button type="button" class="secondary" id="manageMembership" hidden disabled>Manage subscription</button>
       </div>
     </div>
   </dialog>
@@ -3167,7 +3178,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           return "This page does not connect to your Rainbet account. Offline answers stay on this device. If you click “Ask Gemini,” Google receives the question you typed plus fixed public Rainbet and app-reference notes; saved hand history, current hand details, chat transcript, and account data are not attached. Advisor history, practice progress, and session data stay in this browser. Review Google’s API terms before sending anything private.";
         }
         if (mentions("what variables", "what factors", "decision factors", "how is advice chosen", "how does the advisor decide", "what patterns")) {
-          return "For eligible non-split hands against dealer 2–9, the server compares hit, stand, and available double by expected value using an 8-deck S17 replacement model. Recommendations for pairs and dealer 10/A use the published-rule basic-strategy baseline. Separate move-outcome percentages cover dealer 10/A by assuming a dealer blackjack check before actions, and Split percentages for eligible pairs are per split hand, not the full round. These are assumptions, not a chance that a move is correct. The advisor does not track earlier hands or use prior outcomes to predict future cards.";
+          return "For eligible non-split hands against dealer 2–9, the server compares hit, stand, and available double by expected value using an 8-deck S17 replacement model. Hit outcomes include optimal follow-up hit/stand decisions; double takes exactly one card, then stands. Recommendations for pairs and dealer 10/A use the published-rule basic-strategy baseline. Separate move-outcome percentages cover dealer 10/A by assuming a dealer blackjack check before actions, and Split percentages for eligible pairs are per split hand, not the full round. Expected net per initial wager reflects double's 2× exposure, so W/P/L percentages may match when the follow-up strategy is to stand. These are assumptions, not a chance that a move is correct. The advisor does not track earlier hands or use prior outcomes to predict future cards.";
         }
         if (mentions("strategy", "advisor", "recommendation", "hit", "stand", "double", "split", "basic strategy", "rules", "rule set")) {
           return "The advisor uses an 8-deck S17 expected-value model with a replacement approximation for eligible non-split hands against dealer 2–9, with the basic-strategy baseline for pairs and dealer 10/A. Its separate action comparison shows estimated win/push/loss chances; dealer 10/A estimates assume a dealer blackjack check before actions, and Split estimates are per split hand. These are not probabilities that an action is correct. Some table rules remain unpublished, so advice may differ if actual rules differ.";
@@ -6397,6 +6408,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
 
       function initializeSettingsUi() {
         const dialog = byId("settingsDialog");
+        const membershipDialog = byId("membershipDialog");
         const openSettings = () => {
           if (!dialog.open) dialog.showModal();
         };
@@ -6423,18 +6435,15 @@ node .\rainbet-gemini-server.cjs</code></pre>
         });
         byId("openSettings").addEventListener("click", openSettings);
         const openMembershipOptions = () => {
-          openSettings();
-          const accountTarget = settingsTargets.find((button) => button.dataset.settingsTarget === "account");
-          if (!accountTarget) throw new Error("The account settings section is unavailable.");
-          accountTarget.click();
-          const destination = cloudHistoryUser ? byId("membershipOptions") : byId("googleHistorySettingsSignIn");
+          if (!membershipDialog.open) membershipDialog.showModal();
+          const destination = byId("membershipOptions");
           destination.focus({preventScroll: true});
-          destination.scrollIntoView({block: "start"});
         };
         byId("openMembership").addEventListener("click", openMembershipOptions);
         byId("openMembershipFromPrompt").addEventListener("click", openMembershipOptions);
         byId("openSettingsFromHistory").addEventListener("click", openSettings);
         byId("closeSettings").addEventListener("click", () => dialog.close());
+        byId("closeMembershipDialog").addEventListener("click", () => membershipDialog.close());
         byId("manageAnalyticsFromSettings").addEventListener("click", () => {
           dialog.close();
           byId("manageAnalytics").click();
@@ -6615,11 +6624,14 @@ node .\rainbet-gemini-server.cjs</code></pre>
           membershipSubscriptionStatus = "inactive";
           membershipTrialAvailable = true;
           membershipRenewalCanceled = false;
-          byId("membershipStatus").textContent = "Sign in with Google to view or manage membership.";
-          byId("startTrialMembership").hidden = true;
-          byId("upgradeMembership").hidden = true;
+          byId("membershipStatus").textContent = cloudHistoryClient
+            ? "Continue with Google below to unlock secure checkout."
+            : "Google sign-in is unavailable, so checkout cannot be started right now.";
+          byId("startTrialMembership").hidden = false;
+          byId("upgradeMembership").hidden = false;
           byId("cancelUpcomingMembership").hidden = true;
           byId("manageMembership").hidden = true;
+          updateCloudHistoryControls();
           return;
         }
         membershipLoading = true;
@@ -6776,7 +6788,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("googleHistorySignIn"),
           byId("googleHistorySignUp"),
           byId("googleHistorySettingsSignIn"),
-          byId("googleHistorySettingsSignUp")
+          byId("googleHistorySettingsSignUp"),
+          byId("membershipSignIn")
         ];
         accountButtons.forEach((button) => {
           button.hidden = signedIn;
@@ -6796,6 +6809,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("profileNameInput").disabled = !signedIn || !cloudHistoryClient || cloudProfileLoading || cloudProfileSaving;
         byId("saveProfileName").disabled = !signedIn || !cloudHistoryClient || cloudProfileLoading || cloudProfileSaving;
         byId("clearProfileName").disabled = !signedIn || !cloudHistoryClient || cloudProfileLoading || cloudProfileSaving;
+        byId("membershipBillingConsentLabel").hidden = !signedIn;
         byId("membershipBillingConsent").disabled = !signedIn || membershipLoading;
         byId("startTrialMembership").disabled = !signedIn || !cloudHistoryClient ||
           membershipLoading || !byId("membershipBillingConsent").checked;
@@ -6973,6 +6987,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("googleHistorySignUp").addEventListener("click", () => signInWithGoogle());
         byId("googleHistorySettingsSignIn").addEventListener("click", () => signInWithGoogle());
         byId("googleHistorySettingsSignUp").addEventListener("click", () => signInWithGoogle());
+        byId("membershipSignIn").addEventListener("click", () => signInWithGoogle());
         byId("saveProfileName").addEventListener("click", () => void savePrivateProfileName(false));
         byId("clearProfileName").addEventListener("click", () => void savePrivateProfileName(true));
         byId("googleHistorySync").addEventListener("click", () => syncCloudHistory());
@@ -7952,6 +7967,12 @@ node .\rainbet-gemini-server.cjs</code></pre>
             cell.textContent = (outcomes[kind] * 100).toFixed(1) + "%";
             row.appendChild(cell);
           });
+          const expectedNet = analysis.values && analysis.values[action.toLowerCase()];
+          const expectedNetCell = document.createElement("td");
+          expectedNetCell.textContent = Number.isFinite(expectedNet)
+            ? (expectedNet >= 0 ? "+" : "") + expectedNet.toFixed(3)
+            : "—";
+          row.appendChild(expectedNetCell);
           rows.appendChild(row);
         });
         if (splitAvailable) {
@@ -7973,6 +7994,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
               : "—";
             row.appendChild(cell);
           });
+          const expectedNetCell = document.createElement("td");
+          expectedNetCell.textContent = "—";
+          row.appendChild(expectedNetCell);
           rows.appendChild(row);
         }
         panel.hidden = rows.childElementCount === 0;
@@ -7980,6 +8004,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
           ? "No current-hand outcome model is available for this hand and dealer upcard."
           : [
             "8-deck S17 replacement estimates: win/push/loss chances, not the chance a move is correct.",
+            availableActions.includes("DOUBLE")
+              ? "Hit includes optimal follow-up hit/stand decisions; Double takes one card, then stands. EV is expected net per initial wager and reflects double's 2× exposure."
+              : "Hit includes optimal follow-up hit/stand decisions. EV is expected net per initial wager.",
             analysis.dealerNaturalProbability
               ? "Dealer-blackjack chance included (" +
                 (analysis.dealerNaturalProbability * 100).toFixed(1) + "%; assumes a check before player actions)."

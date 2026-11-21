@@ -166,7 +166,7 @@ function expectedValueActionAnalysis(cards, dealer, options) {
     aces: state.aces + (index === 0 ? 1 : 0)
   });
   const dealerMemo = new Map();
-  const playerMemo = new Map();
+  const continuationMemo = new Map();
 
   function dealerOutcomes(state) {
     const total = bestTotal(state);
@@ -228,50 +228,39 @@ function expectedValueActionAnalysis(cards, dealer, options) {
     return outcomes.win - outcomes.loss;
   }
 
-  function hitOutcomes(state, resolveOptimally) {
+  function hitContinuation(state) {
     const outcomes = {win: 0, push: 0, loss: 0};
+    let value = 0;
     for (let index = 0; index < rankProbabilities.length; index++) {
       const probability = rankProbabilities[index];
-      const nextState = addCard(state, index);
-      const nextOutcomes = bestTotal(nextState) > 21
-        ? {win: 0, push: 0, loss: 1}
-        : resolveOptimally(nextState);
+      const continuation = optimalContinuation(addCard(state, index));
+      value += probability * continuation.value;
       for (const result of ["win", "push", "loss"]) {
-        outcomes[result] += probability * nextOutcomes[result];
+        outcomes[result] += probability * continuation.outcomes[result];
       }
     }
-    return outcomes;
+    return {value, outcomes};
   }
 
-  function optimalValue(state) {
-    const total = bestTotal(state);
-    if (total > 21) return -1;
-    const key = state.hardTotal + "|" + state.aces;
-    const cached = playerMemo.get(key);
-    if (cached !== undefined) return cached;
-    let hitValue = 0;
-    for (let index = 0; index < rankProbabilities.length; index++) {
-      hitValue += rankProbabilities[index] * optimalValue(addCard(state, index));
+  function optimalContinuation(state) {
+    if (bestTotal(state) > 21) {
+      return {value: -1, outcomes: {win: 0, push: 0, loss: 1}};
     }
-    const value = Math.max(standValue(state), hitValue);
-    playerMemo.set(key, value);
-    return value;
-  }
-
-  function optimalOutcomes(state) {
-    const total = bestTotal(state);
-    if (total > 21) return {win: 0, push: 0, loss: 1};
-    return standValue(state) >= optimalValue(state) - 1e-12
-      ? standOutcomes(state)
-      : hitOutcomes(state, optimalOutcomes);
+    const key = state.hardTotal + "|" + state.aces;
+    const cached = continuationMemo.get(key);
+    if (cached) return cached;
+    const standingOutcomes = standOutcomes(state);
+    const standingValue = standingOutcomes.win - standingOutcomes.loss;
+    const hitting = hitContinuation(state);
+    const continuation = standingValue >= hitting.value - 1e-12
+      ? {value: standingValue, outcomes: standingOutcomes}
+      : hitting;
+    continuationMemo.set(key, continuation);
+    return continuation;
   }
 
   function hitValue(state) {
-    let value = 0;
-    for (let index = 0; index < rankProbabilities.length; index++) {
-      value += rankProbabilities[index] * optimalValue(addCard(state, index));
-    }
-    return value;
+    return hitContinuation(state).value;
   }
 
   function doubleOutcomes(state) {
@@ -325,9 +314,9 @@ function expectedValueActionAnalysis(cards, dealer, options) {
     stand: includeDealerNatural(standOutcomesForHand, natural)
   };
   if (!natural && total < 21) {
-    const hitOutcomesForHand = hitOutcomes(state, optimalOutcomes);
-    values.hit = hitValue(state) * (1 - dealerNaturalProbability) - dealerNaturalProbability;
-    outcomeProbabilities.hit = includeDealerNatural(hitOutcomesForHand);
+    const hit = hitContinuation(state);
+    values.hit = hit.value * (1 - dealerNaturalProbability) - dealerNaturalProbability;
+    outcomeProbabilities.hit = includeDealerNatural(hit.outcomes);
     if (options.doubleAllowed && cards.length === 2) {
       values.double = doubleValue(state) * (1 - dealerNaturalProbability) - dealerNaturalProbability;
       outcomeProbabilities.double = includeDealerNatural(doubleOutcomes(state));
@@ -350,7 +339,7 @@ function expectedValueActionAnalysis(cards, dealer, options) {
         const hitValueForHand = hitValue(firstDrawState);
         handOutcomes = standValueForHand >= hitValueForHand
           ? standOutcomes(firstDrawState)
-          : hitOutcomes(firstDrawState, optimalOutcomes);
+          : hitContinuation(firstDrawState).outcomes;
         if (canDoubleAfterSplit) {
           const doubleValueForHand = doubleValue(firstDrawState);
           if (doubleValueForHand > Math.max(standValueForHand, hitValueForHand)) {

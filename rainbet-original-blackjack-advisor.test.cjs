@@ -718,7 +718,6 @@ test("settings provide private account, appearance, interface, privacy, practice
   assert.match(html, /id="showAiButton"/);
   assert.match(html, /Private to your account and not globally unique/);
   assert.match(html, /restore synced hand history across devices/);
-  assert.match(html, /signing in alone does not grant paid access/);
   assert.match(moduleSource, /async loadProfile\(\)/);
   assert.match(moduleSource, /async saveProfile\(displayName\)/);
   assert.match(moduleSource, /async clearProfile\(\)/);
@@ -799,12 +798,20 @@ test("privacy disclosures explain local data, account sync, and optional provide
 });
 
 test("membership purchase is reachable from navigation and the advisor paywall", () => {
-  assert.match(html, /id="openMembership">Membership<\/button>/);
+  assert.match(html, /id="openMembership"[^>]*>Join · \$1 intro<\/button>/);
   assert.match(html, /id="membershipRequiredPrompt" hidden/);
   assert.match(html, /id="openMembershipFromPrompt">View membership options<\/button>/);
+  assert.match(html, /<dialog class="settings-dialog membership-dialog" id="membershipDialog"/);
+  assert.match(html, /signing in alone does not grant paid access/i);
   assert.match(html, /id="membershipOptions" tabindex="-1"/);
+  assert.match(html, /id="membershipSignIn" hidden disabled>Continue with Google<\/button>/);
+  assert.match(html, /id="membershipBillingConsentLabel"[^>]*hidden/);
   assert.match(mainScript, /byId\("openMembership"\)\.addEventListener\("click", openMembershipOptions\)/);
   assert.match(mainScript, /byId\("openMembershipFromPrompt"\)\.addEventListener\("click", openMembershipOptions\)/);
+  assert.match(mainScript, /byId\("membershipSignIn"\)\.addEventListener\("click", \(\) => signInWithGoogle\(\)\)/);
+  assert.match(mainScript, /byId\("membershipBillingConsentLabel"\)\.hidden = !signedIn/);
+  assert.match(mainScript, /if \(!membershipDialog\.open\) membershipDialog\.showModal\(\)/);
+  assert.match(mainScript, /const destination = byId\("membershipOptions"\)/);
 });
 
 test("Google sign-in errors explain Firebase setup and user-actionable failures", () => {
@@ -994,6 +1001,45 @@ test("membership status refresh updates account controls after the server respon
   assert.equal(state.getState().controlsRefreshes, 1);
   assert.equal(elements.manageMembership.hidden, false);
   assert.equal(elements.startTrialMembership.hidden, true);
+});
+
+test("signed-out membership view exposes plan choices and directs users to Google sign-in", async () => {
+  const start = mainScript.indexOf("      async function refreshMembershipStatus()");
+  const end = mainScript.indexOf("      async function startTrialMembershipCheckout()", start);
+  assert.ok(start >= 0 && end > start, "membership status updater should exist");
+  const elements = {
+    membershipStatus: {textContent: ""},
+    startTrialMembership: {hidden: true, disabled: false},
+    upgradeMembership: {hidden: true, disabled: false},
+    cancelUpcomingMembership: {hidden: false, disabled: false},
+    manageMembership: {hidden: false, disabled: false}
+  };
+  const state = new Function(
+    "byId",
+    "cloudHistoryUser",
+    "cloudHistoryClient",
+    "fetch",
+    "let membershipTier = 'free';\n" +
+      "let membershipSubscriptionStatus = 'inactive';\n" +
+      "let membershipTrialAvailable = true;\n" +
+      "let membershipRenewalCanceled = false;\n" +
+      "let membershipLoading = false;\n" +
+      "let controlsRefreshes = 0;\n" +
+      "function updateCloudHistoryControls() { controlsRefreshes++; }\n" +
+      mainScript.slice(start, end) +
+      "return {refreshMembershipStatus, getState: () => ({controlsRefreshes})};"
+  )(
+    (id) => elements[id],
+    null,
+    null,
+    async () => { throw new Error("fetch should not be called while signed out"); }
+  );
+  await state.refreshMembershipStatus();
+  assert.equal(elements.startTrialMembership.hidden, false);
+  assert.equal(elements.upgradeMembership.hidden, false);
+  assert.equal(elements.cancelUpcomingMembership.hidden, true);
+  assert.match(elements.membershipStatus.textContent, /Google sign-in is unavailable/);
+  assert.equal(state.getState().controlsRefreshes, 1);
 });
 
 test("membership checkout buttons stay gated until consent and send the agreed billing flag", async () => {
@@ -2439,6 +2485,27 @@ test("8-deck outcome analysis compares moves and reports split-hand odds under s
     2 * (soft17.outcomeProbabilities.double.win - soft17.outcomeProbabilities.double.loss)) < 1e-12,
   "double EV reflects twice the initial wager");
 
+  const hitContinuation = expectedValueActionAnalysis([card(10), card(2)], card(10), {
+    doubleAllowed: true,
+    afterSplit: false
+  });
+  assert.notEqual(hitContinuation.outcomeProbabilities.hit.win, hitContinuation.outcomeProbabilities.double.win,
+    "hit outcomes include optimal follow-up hits while double stands after one card");
+  assert.notEqual(hitContinuation.outcomeProbabilities.hit.push, hitContinuation.outcomeProbabilities.double.push);
+  assert.ok(hitContinuation.values.hit > hitContinuation.values.double);
+
+  const oneCardHit = expectedValueActionAnalysis([card(10), card(6)], card(10), {
+    doubleAllowed: true,
+    afterSplit: false
+  });
+  for (const result of ["win", "push", "loss"]) {
+    assert.ok(Math.abs(oneCardHit.outcomeProbabilities.hit[result] -
+      oneCardHit.outcomeProbabilities.double[result]) < 1e-12,
+    "when optimal follow-up is to stand, hit and double can have the same W/P/L chances");
+  }
+  assert.notEqual(oneCardHit.values.hit, oneCardHit.values.double,
+    "double still has different expected net because it risks twice the wager");
+
   const dealerTen = expectedValueActionAnalysis([card(10), card(6)], card(10), {
     doubleAllowed: true,
     afterSplit: false
@@ -2493,8 +2560,10 @@ test("recommendation panel exposes visible win push and loss percentages", () =>
   assert.match(html, /id="actionOutcomeComparison"/);
   assert.match(html, /id="actionOutcomeRows"/);
   assert.match(html, /Estimated outcome by move/);
+  assert.match(html, /EV \/ 1×/);
   assert.match(mainScript, /function renderActionOutcomeComparison\(result, splitAvailable\)/);
   assert.match(mainScript, /8-deck S17 replacement estimates: win\/push\/loss chances, not the chance a move is correct/);
+  assert.match(mainScript, /Hit includes optimal follow-up hit\/stand decisions; Double takes one card, then stands/);
   assert.match(html, /function renderCurrentHandOutcome\(result\)/);
   assert.match(html, /Split W\/P\/L is per split hand/);
 });
@@ -2583,7 +2652,11 @@ test("move comparison renders action probabilities, the suggestion, and split-ha
   assert.equal(elements.moveSuggestedAction.textContent, "HIT");
   assert.equal(elements.actionOutcomeRows.childElementCount, 3);
   assert.match(elements.actionOutcomeRows.children[0].children[1].textContent, /^\d+\.\d+%$/);
+  assert.equal(elements.actionOutcomeRows.children[0].children[4].textContent, "-0.575");
+  assert.equal(elements.actionOutcomeRows.children[2].children[4].textContent, "-1.074");
   assert.match(elements.actionOutcomeComparisonNote.textContent, /Dealer-blackjack chance included/);
+  assert.match(elements.actionOutcomeComparisonNote.textContent, /Hit includes optimal follow-up hit\/stand decisions/);
+  assert.match(elements.actionOutcomeComparisonNote.textContent, /EV is expected net per initial wager/);
 
   const pairAdvice = actionForContext([card(8), card(8)], card(6), {
     doubleAllowed: true,
