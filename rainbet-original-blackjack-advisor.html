@@ -803,10 +803,12 @@
       .panel { margin-top: 8px; padding: 14px; }
       .panel h2 { margin-bottom: 8px; }
       .advisor-live-advice {
-        position: static; grid-template-columns: auto minmax(0, 1fr);
+        position: static; grid-template-columns: minmax(0, 1fr);
         gap: 10px; margin: 7px 0 9px; padding: 8px 10px; border-radius: 11px;
         background-color: rgba(16, 29, 20, .97);
       }
+      .advisor-live-advice > * { min-width: 0; }
+      .advisor-live-advice > div:nth-of-type(2) { display: none; }
       .advisor-live-action { font-size: 1.05rem; }
       .advisor-live-hand { font-size: .74rem; }
       .advisor-decision-metrics {
