@@ -1010,7 +1010,7 @@ function createServer(options) {
         const html = await fs.readFile(appFile);
         response.writeHead(200, {
           "Cache-Control": "no-store",
-          "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://plausible.io; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://www.googleapis.com https://accounts.google.com https://plausible.io; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+          "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://accounts.google.com https://plausible.io; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://www.googleapis.com https://accounts.google.com https://plausible.io; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
           "Content-Type": "text/html; charset=utf-8"
         });
         response.end(request.method === "HEAD" ? undefined : html);

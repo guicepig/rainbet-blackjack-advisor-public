@@ -813,6 +813,9 @@ test("Google sign-in errors explain Firebase setup and user-actionable failures"
 test("Google sign-in supports mobile redirect and recovers popup-blocked desktop sign-in", () => {
   const moduleSource = fs.readFileSync(path.join(__dirname, "rainbet-cloud-history.mjs"), "utf8");
   assert.match(moduleSource, /function shouldUseGoogleSignInRedirect\(\)/);
+  assert.match(moduleSource, /requestGoogleAccessToken/);
+  assert.match(moduleSource, /initTokenClient/);
+  assert.match(moduleSource, /signInWithCredential/);
   assert.match(moduleSource, /authSdk\.signInWithRedirect\(auth, provider\)/);
   assert.match(moduleSource, /authSdk\.signInWithPopup\(auth, provider\)/);
   assert.match(moduleSource, /error\.code !== "auth\/popup-blocked"/);

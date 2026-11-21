@@ -20,6 +20,38 @@ function shouldUseGoogleSignInRedirect() {
   if (nav.userAgentData && typeof nav.userAgentData.mobile === "boolean") {
     return nav.userAgentData.mobile;
   }
+
+  function googleIdentityClientId() {
+    return "566237267938-tmksjltnr83upcpeb8356v5igvub42oj.apps.googleusercontent.com";
+  }
+
+  function requestGoogleAccessToken() {
+    return new Promise((resolve, reject) => {
+      const googleIdentity = window.google && window.google.accounts && window.google.accounts.oauth2;
+      if (!googleIdentity || typeof googleIdentity.initTokenClient !== "function") {
+        reject(Object.assign(new Error("Google Identity Services could not load."), {
+          code: "auth/popup-blocked"
+        }));
+        return;
+      }
+      const tokenClient = googleIdentity.initTokenClient({
+        client_id: googleIdentityClientId(),
+        scope: "openid email profile",
+        prompt: "select_account",
+        callback: (response) => {
+          if (response && response.access_token) resolve(response.access_token);
+          else reject(Object.assign(new Error("Google sign-in did not return an access token."), {
+            code: response && response.error ? response.error : "auth/popup-closed-by-user"
+          }));
+        },
+        error_callback: (error) => reject(Object.assign(
+          new Error(error && error.type ? "Google sign-in was canceled or blocked." : "Google sign-in failed."),
+          {code: "auth/popup-closed-by-user"}
+        ))
+      });
+      tokenClient.requestAccessToken();
+    });
+  }
   return /Android|iPhone|iPad|iPod|IEMobile|Windows Phone/i.test(nav.userAgent || "") ||
     /Macintosh/i.test(nav.userAgent || "") && nav.maxTouchPoints > 1;
 }
@@ -53,6 +85,28 @@ async function initializeCloudHistory() {
     window.rainbetCloudHistory = {
       async signIn() {
         const provider = new authSdk.GoogleAuthProvider();
+        if (!shouldUseGoogleSignInRedirect()) {
+          try {
+            const accessToken = await requestGoogleAccessToken();
+            const credential = provider.credential(null, accessToken);
+            const loginCredential = await authSdk.signInWithCredential(auth, credential);
+            const accountInfo = authSdk.getAdditionalUserInfo(loginCredential);
+            return {isNewUser: Boolean(accountInfo && accountInfo.isNewUser)};
+          } catch (error) {
+            if (!error || error.code === "auth/popup-blocked" ||
+                error.code === "auth/popup-closed-by-user") {
+              try {
+                const credential = await authSdk.signInWithPopup(auth, provider);
+                const accountInfo = authSdk.getAdditionalUserInfo(credential);
+                return {isNewUser: Boolean(accountInfo && accountInfo.isNewUser)};
+              } catch (popupError) {
+                if (!popupError || popupError.code !== "auth/popup-blocked") throw popupError;
+              }
+            } else {
+              throw error;
+            }
+          }
+        }
         if (shouldUseGoogleSignInRedirect()) {
           await authSdk.signInWithRedirect(auth, provider);
           return {redirecting: true};
