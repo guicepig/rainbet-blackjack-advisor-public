@@ -40,6 +40,12 @@ assert.ok(feedbackPreferenceStart >= 0 && feedbackPreferenceEnd > feedbackPrefer
 const readFeedbackPreference = new Function(
   mainScript.slice(feedbackPreferenceStart, feedbackPreferenceEnd) + "return readFeedbackPreference;"
 )();
+const reduceMotionPreferenceStart = mainScript.indexOf("      function readReduceMotionPreference(");
+const reduceMotionPreferenceEnd = mainScript.indexOf("      function initializeAppearanceSettings(", reduceMotionPreferenceStart);
+assert.ok(reduceMotionPreferenceStart >= 0 && reduceMotionPreferenceEnd > reduceMotionPreferenceStart, "reduced-motion preference reader should exist");
+const readReduceMotionPreference = new Function(
+  mainScript.slice(reduceMotionPreferenceStart, reduceMotionPreferenceEnd) + "return readReduceMotionPreference;"
+)();
 const commandPaletteFilterStart = mainScript.indexOf("      function filterCommandPaletteCommands(");
 const commandPaletteFilterEnd = mainScript.indexOf("      function initializeCommandPalette(", commandPaletteFilterStart);
 assert.ok(commandPaletteFilterStart >= 0 && commandPaletteFilterEnd > commandPaletteFilterStart, "command palette filter should exist");
@@ -765,6 +771,8 @@ test("settings provide private account, code redemption, appearance, interface, 
   assert.match(html, /id="themeSelect"/);
   assert.match(html, /id="compactLayout"/);
   assert.match(html, /id="reduceMotion"/);
+  assert.match(html, /<html lang="en" data-theme="violet">/);
+  assert.match(html, /\.welcome-dialog\s*\{\s*width: min\(680px, calc\(100vw - 28px\)\)/);
   assert.match(html, /id="showAiButton"/);
   assert.match(html, /Private to your account and not globally unique/);
   assert.match(html, /restore synced hand history across devices/);
@@ -808,6 +816,14 @@ test("settings provide private account, code redemption, appearance, interface, 
   assert.match(html, /id="sponsorCodeInput"/);
   assert.match(mainScript, /api\/sponsor\/redeem/);
   assert.match(mainScript, /rainbet-sponsor-access-code-v1/);
+});
+
+test("reduced motion follows the operating system unless a saved choice overrides it", () => {
+  assert.equal(readReduceMotionPreference(null, true), true);
+  assert.equal(readReduceMotionPreference(null, false), false);
+  assert.equal(readReduceMotionPreference("enabled", false), true);
+  assert.equal(readReduceMotionPreference("disabled", true), false);
+  assert.throws(() => readReduceMotionPreference("unexpected", true), /unexpected value/);
 });
 
 test("privacy disclosures explain local data, account sync, and optional providers", () => {
@@ -1615,7 +1631,7 @@ test("live advisor input debounces private-server requests", () => {
   const window = {
     clearTimeout(id) { timers.delete(id); },
     setTimeout(callback, delay) {
-      assert.equal(delay, 80);
+      assert.equal(delay, 160);
       const id = ++nextTimerId;
       timers.set(id, callback);
       return id;
