@@ -4102,6 +4102,9 @@ function createBillingTestStore(initialMembership) {
           if (token === "google-token") {
             return {uid: "google-user", email: "user@example.test", firebase: {sign_in_provider: "google.com"}};
           }
+          if (token === "test-token") {
+            return {uid: "test-user", email: "tester@example.test", firebase: {sign_in_provider: "google.com"}};
+          }
           if (token === "other-token") {
             return {uid: "google-user", firebase: {sign_in_provider: "password"}};
           }
@@ -4124,6 +4127,39 @@ function createBillingTestStore(initialMembership) {
     }
   };
 }
+
+test("test account allowlist grants advisor access without a Stripe membership", async (testContext) => {
+  const mock = createBillingTestStore();
+  const server = createGeminiServer({
+    apiKey: "",
+    billingStore: mock.store,
+    appPublicUrl: "https://advisor.example",
+    testAccessEmails: ["tester@example.test"]
+  });
+  const origin = await listenForTest(testContext, server);
+  const request = (path, token, body) => fetch(origin + path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Authorization: "Bearer " + token
+    },
+    body: JSON.stringify(body || {})
+  });
+
+  const status = await request("/api/billing/status", "test-token");
+  assert.equal(status.status, 200);
+  assert.deepEqual(await status.json(), {
+    tier: "paid",
+    subscriptionStatus: "test",
+    trialExpiresAt: null,
+    trialAvailable: false,
+    renewalCanceled: false,
+    testAccess: true
+  });
+  assert.equal((await request("/api/billing/trial", "test-token", {acceptRecurringBilling: true})).status, 409);
+  assert.equal(mock.checkoutCalls.length, 0);
+});
 
 test("membership checkout requires explicit consent and validates the Google account", async (testContext) => {
   const mock = createBillingTestStore();

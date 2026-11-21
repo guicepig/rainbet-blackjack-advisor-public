@@ -330,6 +330,18 @@ function isMembershipPaid(membership) {
     (membership.subscriptionStatus === "active" || trialActive);
 }
 
+function getTestAccessEmails(settings) {
+  const raw = settings.testAccessEmails === undefined
+    ? process.env.TEST_ACCESS_EMAILS || ""
+    : settings.testAccessEmails;
+  if (Array.isArray(raw)) return new Set(raw.map((email) => String(email).trim().toLowerCase()).filter(Boolean));
+  return new Set(String(raw).split(",").map((email) => email.trim().toLowerCase()).filter(Boolean));
+}
+
+function isTestAccount(decoded, testAccessEmails) {
+  return typeof decoded.email === "string" && testAccessEmails.has(decoded.email.trim().toLowerCase());
+}
+
 function stringId(value) {
   if (typeof value === "string") return value;
   return value && typeof value.id === "string" ? value.id : "";
@@ -375,6 +387,7 @@ function createServer(options) {
   const billingStore = Object.prototype.hasOwnProperty.call(settings, "billingStore")
     ? settings.billingStore
     : configuredBillingStore(settings);
+  const testAccessEmails = getTestAccessEmails(settings);
   const trainingStore = Object.prototype.hasOwnProperty.call(settings, "trainingStore")
     ? settings.trainingStore
     : configuredTrainingStore(settings);
@@ -411,6 +424,9 @@ function createServer(options) {
     if (!decoded || typeof decoded.uid !== "string" ||
         !decoded.firebase || decoded.firebase.sign_in_provider !== "google.com") {
       return {allowed: false, status: 403, error: "Use a Google account with an active membership."};
+    }
+    if (isTestAccount(decoded, testAccessEmails)) {
+      return {allowed: true, uid: decoded.uid, testAccess: true};
     }
     try {
       const snapshot = await getMembershipDocument(billingStore.firestore, decoded.uid).get();
@@ -673,6 +689,17 @@ function createServer(options) {
       const membershipRef = getMembershipDocument(billingStore.firestore, uid);
       try {
         if (pathname === "/api/billing/status") {
+          if (isTestAccount(decoded, testAccessEmails)) {
+            sendJson(response, 200, {
+              tier: "paid",
+              subscriptionStatus: "test",
+              trialExpiresAt: null,
+              trialAvailable: false,
+              renewalCanceled: false,
+              testAccess: true
+            });
+            return;
+          }
           const snapshot = await membershipRef.get();
           const membership = snapshot.exists ? snapshot.data() : {};
           const trialActive = membership.subscriptionStatus === "trialing" &&
@@ -691,6 +718,10 @@ function createServer(options) {
         if (pathname === "/api/billing/trial" ||
             pathname === "/api/billing/checkout" ||
             pathname === "/api/billing/cancel-intro") {
+          if (isTestAccount(decoded, testAccessEmails) && pathname !== "/api/billing/cancel-intro") {
+            sendJson(response, 409, {error: "This account has free test access and cannot start a paid subscription."});
+            return;
+          }
           let body;
           try {
             body = await readJsonBody(request);
