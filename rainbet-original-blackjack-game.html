@@ -58,7 +58,7 @@
 
     <section class="panel" aria-labelledby="rules-title">
       <h2 id="rules-title">Practice rules</h2>
-      <p class="fine">Eight decks are shuffled for each hand; the dealer stands on all 17s; a natural blackjack pays 3:2. Double-after-split is optional below because Rainbet’s public page does not clearly specify it. This simulator allows one split per original hand, gives split aces one card each, and permits doubling on any two cards (including split hands only when DAS is enabled).</p>
+      <p class="fine">Eight decks are shuffled for each hand; the dealer stands on all 17s; a natural blackjack pays 3:2. Double-after-split is optional below because Rainbet’s public page does not clearly specify it. This simulator allows one split per original hand, gives split aces one card each and stands them automatically, and permits doubling on any two cards (including split hands only when DAS is enabled).</p>
       <p class="fine">Insurance, side bets, surrender, and resplitting are omitted. These are practice assumptions, not a claim that every rule exactly matches Rainbet. All balances and wagers are fake credits and reset when this page is reloaded.</p>
     </section>
 
@@ -382,8 +382,8 @@
         if (firstCard.rank === "A") {
           left.finished = true;
           right.finished = true;
-          left.result = "Split ace — one card only";
-          right.result = "Split ace — one card only";
+          left.result = "Stood automatically after one card";
+          right.result = "Stood automatically after one card";
           advanceHand();
           return;
         }

@@ -318,6 +318,31 @@ function configuredBillingStore(settings) {
   };
 }
 
+function getMembershipDocument(firestore, uid) {
+  return firestore.doc("users/" + uid + "/membership/current");
+}
+
+function isMembershipPaid(membership) {
+  const trialActive = membership.subscriptionStatus === "trialing" &&
+    typeof membership.trialExpiresAt === "string" &&
+    Date.parse(membership.trialExpiresAt) > Date.now();
+  return membership.tier === "paid" &&
+    (membership.subscriptionStatus === "active" || trialActive);
+}
+
+function stringId(value) {
+  if (typeof value === "string") return value;
+  return value && typeof value.id === "string" ? value.id : "";
+}
+
+function getInvoiceSubscriptionId(invoice) {
+  if (typeof invoice.subscription === "string") return invoice.subscription;
+  const subscription = invoice.parent &&
+    invoice.parent.subscription_details &&
+    invoice.parent.subscription_details.subscription;
+  return stringId(subscription);
+}
+
 function extractAnswer(interaction) {
   if (interaction && typeof interaction.output_text === "string" && interaction.output_text.trim()) {
     return interaction.output_text.trim();
@@ -343,6 +368,7 @@ function extractAnswer(interaction) {
 
 function createServer(options) {
   const settings = options || {};
+  const environment = settings.environment || process.env.NODE_ENV || "development";
   const apiKey = settings.apiKey === undefined ? process.env.GEMINI_API_KEY : settings.apiKey;
   const model = settings.model || process.env.GEMINI_MODEL || defaultModel;
   const fetchImpl = settings.fetchImpl || globalThis.fetch;
@@ -366,7 +392,11 @@ function createServer(options) {
   const strategyRateWindows = new Map();
   const siteStatsRateWindows = new Map();
   const requireActiveMembership = async (request) => {
-    if (!billingStore) return {allowed: true};
+    if (!billingStore) {
+      return environment === "production"
+        ? {allowed: false, status: 503, error: "Paid membership is not configured on this server."}
+        : {allowed: true};
+    }
     const authorization = request.headers.authorization;
     const idToken = typeof authorization === "string" && authorization.startsWith("Bearer ")
       ? authorization.slice(7).trim()
@@ -378,19 +408,21 @@ function createServer(options) {
     } catch {
       return {allowed: false, status: 401, error: "Your Google sign-in session is invalid or expired."};
     }
-    if (!decoded || typeof decoded.uid !== "string" || decoded.firebase.sign_in_provider === "anonymous") {
+    if (!decoded || typeof decoded.uid !== "string" ||
+        !decoded.firebase || decoded.firebase.sign_in_provider !== "google.com") {
       return {allowed: false, status: 403, error: "Use a Google account with an active membership."};
     }
-    const snapshot = await billingStore.firestore.doc("users", decoded.uid, "membership", "current").get();
-    const membership = snapshot.exists ? snapshot.data() : {};
-    const trialActive = membership.subscriptionStatus === "trialing" &&
-      typeof membership.trialExpiresAt === "string" &&
-      Date.parse(membership.trialExpiresAt) > Date.now();
-    const active = membership.tier === "paid" &&
-      (membership.subscriptionStatus === "active" || trialActive);
-    return active
-      ? {allowed: true, uid: decoded.uid}
-      : {allowed: false, status: 402, error: "Active membership required. Start the $1 seven-day trial or a $10 monthly subscription."};
+    try {
+      const snapshot = await getMembershipDocument(billingStore.firestore, decoded.uid).get();
+      const membership = snapshot.exists ? snapshot.data() : {};
+      return isMembershipPaid(membership)
+        ? {allowed: true, uid: decoded.uid}
+        : {allowed: false, status: 402, error: "Active membership required. Start the $1 seven-day intro or a $10 monthly subscription."};
+    } catch (error) {
+      process.stderr.write("Membership lookup failed: " +
+        (error && typeof error.code === "string" ? error.code : "billing-error") + "\n");
+      return {allowed: false, status: 503, error: "Membership status is temporarily unavailable. Try again shortly."};
+    }
   };
   return http.createServer(async (request, response) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
@@ -438,45 +470,152 @@ function createServer(options) {
         return;
       }
       try {
-        let uid = "";
-        let customerId = "";
-        let subscriptionId = "";
-        let subscriptionStatus = "";
-        if (event.type === "checkout.session.completed") {
-          uid = event.data.object.client_reference_id || event.data.object.metadata && event.data.object.metadata.firebaseUid || "";
-          customerId = typeof event.data.object.customer === "string" ? event.data.object.customer : "";
-          subscriptionId = typeof event.data.object.subscription === "string" ? event.data.object.subscription : "";
-          subscriptionStatus = event.data.object.mode === "payment" ? "trialing" : "active";
-        } else if (event.type === "customer.subscription.updated" ||
-                   event.type === "customer.subscription.deleted") {
-          const subscription = event.data.object;
-          uid = subscription.metadata && subscription.metadata.firebaseUid || "";
-          customerId = typeof subscription.customer === "string" ? subscription.customer : "";
-          subscriptionId = subscription.id;
-          subscriptionStatus = subscription.status;
-        } else if (event.type === "invoice.payment_failed") {
-          const invoice = event.data.object;
-          const subscription = typeof invoice.subscription === "string" ? invoice.subscription : "";
-          uid = invoice.metadata && invoice.metadata.firebaseUid || "";
-          customerId = typeof invoice.customer === "string" ? invoice.customer : "";
-          subscriptionId = subscription;
-          subscriptionStatus = "past_due";
-        }
-        if (uid) {
-          const trialExpiresAt = subscriptionStatus === "trialing"
-            ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-            : null;
-          await billingStore.firestore
-            .doc("users", uid, "membership", "current")
-            .set({
+        const firestore = billingStore.firestore;
+        const eventCreated = Number.isFinite(event.created) ? event.created : Math.floor(Date.now() / 1000);
+        const updateSubscription = async (subscription) => {
+          const uid = subscription.metadata && subscription.metadata.firebaseUid;
+          if (typeof uid !== "string" || !uid || typeof subscription.id !== "string") {
+            throw new Error("The Stripe subscription is missing its Firebase account reference.");
+          }
+          const reference = getMembershipDocument(firestore, uid);
+          await firestore.runTransaction(async (transaction) => {
+            const snapshot = await transaction.get(reference);
+            const existing = snapshot.exists ? snapshot.data() : {};
+            if (Number(existing.lastStripeEventCreated) > eventCreated) return;
+            const paid = ["active", "trialing"].includes(subscription.status);
+            transaction.set(reference, {
               schemaVersion: 1,
-              tier: ["active", "trialing"].includes(subscriptionStatus) ? "paid" : "free",
-              subscriptionStatus,
-              subscriptionId,
-              customerId,
-              trialExpiresAt,
+              tier: paid ? "paid" : "free",
+              subscriptionStatus: subscription.status,
+              subscriptionId: subscription.id,
+              customerId: stringId(subscription.customer),
+              subscriptionScheduleId: stringId(subscription.schedule) ||
+                existing.subscriptionScheduleId || null,
+              trialExpiresAt: existing.trialExpiresAt || null,
+              lastStripeEventCreated: eventCreated,
               updatedAt: new Date().toISOString()
             }, {merge: true});
+          });
+        };
+
+        if (event.type === "checkout.session.completed") {
+          const session = event.data.object;
+          const metadata = session.metadata || {};
+          const uid = session.client_reference_id || metadata.firebaseUid || "";
+          const customerId = stringId(session.customer);
+          const subscriptionId = stringId(session.subscription);
+          if (session.mode === "payment" && metadata.purchaseType === "seven-day-trial") {
+            if (session.payment_status !== "paid") {
+              sendJson(response, 200, {received: true, pendingPayment: true});
+              return;
+            }
+            if (!uid || !customerId || !stringId(session.payment_intent)) {
+              throw new Error("The paid intro Checkout session is missing required Stripe or Firebase IDs.");
+            }
+            const paymentIntent = await billingStore.stripe.paymentIntents.retrieve(
+              stringId(session.payment_intent)
+            );
+            const paymentMethodId = stringId(paymentIntent.payment_method);
+            if (!paymentMethodId) {
+              throw new Error("The paid intro Checkout session has no reusable payment method.");
+            }
+            const reference = getMembershipDocument(firestore, uid);
+            const paidAt = eventCreated * 1000;
+            const trialExpiresAt = new Date(paidAt + 7 * 24 * 60 * 60 * 1000).toISOString();
+            const claim = await firestore.runTransaction(async (transaction) => {
+              const snapshot = await transaction.get(reference);
+              const existing = snapshot.exists ? snapshot.data() : {};
+              if (existing.trialClaimedAt && existing.trialCheckoutSessionId !== session.id) {
+                return {accepted: false, scheduleId: ""};
+              }
+              if (existing.subscriptionStatus === "active") {
+                return {accepted: false, scheduleId: ""};
+              }
+              if (existing.trialCheckoutSessionId === session.id && existing.subscriptionScheduleId) {
+                return {accepted: true, scheduleId: existing.subscriptionScheduleId};
+              }
+              transaction.set(reference, {
+                schemaVersion: 1,
+                tier: "paid",
+                subscriptionStatus: "trialing",
+                customerId,
+                trialCheckoutSessionId: session.id,
+                trialClaimedAt: new Date(paidAt).toISOString(),
+                trialExpiresAt,
+                updatedAt: new Date().toISOString()
+              }, {merge: true});
+              return {accepted: true, scheduleId: ""};
+            });
+            if (!claim.accepted) {
+              await billingStore.stripe.refunds.create({
+                payment_intent: stringId(session.payment_intent)
+              }, {idempotencyKey: "rainbet-duplicate-intro-refund-" + session.id});
+              sendJson(response, 200, {received: true, duplicateTrialRefunded: true});
+              return;
+            }
+            if (!claim.scheduleId) {
+              const schedule = await billingStore.stripe.subscriptionSchedules.create({
+                customer: customerId,
+                start_date: Math.max(
+                  Math.floor(Date.parse(trialExpiresAt) / 1000),
+                  Math.floor(Date.now() / 1000) + 60
+                ),
+                end_behavior: "release",
+                default_settings: {
+                  collection_method: "charge_automatically",
+                  default_payment_method: paymentMethodId
+                },
+                metadata: {
+                  firebaseUid: uid,
+                  purchaseType: "seven-day-intro",
+                  checkoutSessionId: session.id
+                },
+                phases: [{
+                  items: [{price: billingStore.priceId, quantity: 1}],
+                  duration: {interval: "month", interval_count: 1},
+                  metadata: {firebaseUid: uid, purchaseType: "monthly"}
+                }]
+              }, {idempotencyKey: "rainbet-seven-day-conversion-" + session.id});
+              await reference.set({
+                subscriptionScheduleId: schedule.id,
+                updatedAt: new Date().toISOString()
+              }, {merge: true});
+            }
+          } else if (session.mode === "subscription" && subscriptionId) {
+            const subscription = await billingStore.stripe.subscriptions.retrieve(subscriptionId);
+            await updateSubscription(subscription);
+          }
+        } else if (event.type === "customer.subscription.created" ||
+                   event.type === "customer.subscription.updated" ||
+                   event.type === "customer.subscription.deleted") {
+          await updateSubscription(event.data.object);
+        } else if (event.type === "invoice.payment_failed" || event.type === "invoice.paid") {
+          const subscriptionId = getInvoiceSubscriptionId(event.data.object);
+          if (subscriptionId) {
+            const subscription = await billingStore.stripe.subscriptions.retrieve(subscriptionId);
+            await updateSubscription(subscription);
+          }
+        } else if (event.type === "subscription_schedule.canceled") {
+          const schedule = event.data.object;
+          const uid = schedule.metadata && schedule.metadata.firebaseUid;
+          if (typeof uid === "string" && uid) {
+            const reference = getMembershipDocument(firestore, uid);
+            await firestore.runTransaction(async (transaction) => {
+              const snapshot = await transaction.get(reference);
+              const existing = snapshot.exists ? snapshot.data() : {};
+              if (Number(existing.lastStripeEventCreated) > eventCreated) return;
+              const introActive = existing.subscriptionStatus === "trialing" &&
+                typeof existing.trialExpiresAt === "string" &&
+                Date.parse(existing.trialExpiresAt) > Date.now();
+              transaction.set(reference, {
+                tier: introActive ? "paid" : "free",
+                subscriptionStatus: introActive ? "trialing" : "canceled",
+                renewalCanceled: true,
+                lastStripeEventCreated: eventCreated,
+                updatedAt: new Date().toISOString()
+              }, {merge: true});
+            });
+          }
         }
         sendJson(response, 200, {received: true});
       } catch (error) {
@@ -490,6 +629,7 @@ function createServer(options) {
     if (pathname === "/api/billing/status" ||
         pathname === "/api/billing/trial" ||
         pathname === "/api/billing/checkout" ||
+        pathname === "/api/billing/cancel-intro" ||
         pathname === "/api/billing/portal") {
       if (request.method !== "POST") {
         request.resume();
@@ -524,12 +664,13 @@ function createServer(options) {
         sendJson(response, 401, {error: "The Google sign-in session is invalid or expired."});
         return;
       }
-      if (!decoded || typeof decoded.uid !== "string" || decoded.firebase.sign_in_provider === "anonymous") {
+      if (!decoded || typeof decoded.uid !== "string" ||
+          !decoded.firebase || decoded.firebase.sign_in_provider !== "google.com") {
         sendJson(response, 403, {error: "Use a Google account to manage membership."});
         return;
       }
       const uid = decoded.uid;
-      const membershipRef = billingStore.firestore.doc("users", uid, "membership", "current");
+      const membershipRef = getMembershipDocument(billingStore.firestore, uid);
       try {
         if (pathname === "/api/billing/status") {
           const snapshot = await membershipRef.get();
@@ -537,59 +678,179 @@ function createServer(options) {
           const trialActive = membership.subscriptionStatus === "trialing" &&
             typeof membership.trialExpiresAt === "string" &&
             Date.parse(membership.trialExpiresAt) > Date.now();
-          const paid = membership.tier === "paid" &&
-            (membership.subscriptionStatus === "active" || trialActive);
+          const paid = isMembershipPaid(membership);
           sendJson(response, 200, {
             tier: paid ? "paid" : "free",
             subscriptionStatus: trialActive ? "trialing" : (paid ? "active" : "inactive"),
-            trialExpiresAt: trialActive ? membership.trialExpiresAt : null
+            trialExpiresAt: trialActive ? membership.trialExpiresAt : null,
+            trialAvailable: !membership.trialClaimedAt,
+            renewalCanceled: Boolean(membership.renewalCanceled)
           });
           return;
         }
-        if (pathname === "/api/billing/trial" || pathname === "/api/billing/checkout") {
+        if (pathname === "/api/billing/trial" ||
+            pathname === "/api/billing/checkout" ||
+            pathname === "/api/billing/cancel-intro") {
+          let body;
+          try {
+            body = await readJsonBody(request);
+          } catch (error) {
+            sendJson(response, error instanceof HttpError ? error.status : 400,
+              {error: error instanceof HttpError ? error.message : "Could not read the billing request."});
+            return;
+          }
+          if (pathname !== "/api/billing/cancel-intro" &&
+              (!body || body.acceptRecurringBilling !== true)) {
+            sendJson(response, 400, {error: "Confirm the recurring billing and cancellation terms before continuing."});
+            return;
+          }
           const snapshot = await membershipRef.get();
           const existing = snapshot.exists ? snapshot.data() : {};
+          if (pathname === "/api/billing/cancel-intro") {
+            const trialActive = existing.subscriptionStatus === "trialing" &&
+              typeof existing.trialExpiresAt === "string" &&
+              Date.parse(existing.trialExpiresAt) > Date.now();
+            if (!trialActive || !existing.subscriptionScheduleId) {
+              sendJson(response, 409, {error: "There is no scheduled monthly renewal to cancel."});
+              return;
+            }
+            if (existing.renewalCanceled) {
+              sendJson(response, 200, {canceled: true, trialExpiresAt: existing.trialExpiresAt});
+              return;
+            }
+            const schedule = await billingStore.stripe.subscriptionSchedules.retrieve(
+              existing.subscriptionScheduleId
+            );
+            if (schedule.status !== "not_started") {
+              sendJson(response, 409, {error: "The monthly subscription has started. Use Manage subscription to cancel it."});
+              return;
+            }
+            await billingStore.stripe.subscriptionSchedules.cancel(existing.subscriptionScheduleId);
+            await membershipRef.set({
+              tier: "paid",
+              subscriptionStatus: "trialing",
+              renewalCanceled: true,
+              updatedAt: new Date().toISOString()
+            }, {merge: true});
+            sendJson(response, 200, {canceled: true, trialExpiresAt: existing.trialExpiresAt});
+            return;
+          }
+
+          const isTrial = pathname === "/api/billing/trial";
+          if (isMembershipPaid(existing)) {
+            sendJson(response, 409, {error: "Your account already has active access. Manage or cancel that membership before starting another checkout."});
+            return;
+          }
+          if (isTrial && existing.trialClaimedAt) {
+            sendJson(response, 409, {error: "The $1 introductory offer can only be used once per Google account."});
+            return;
+          }
+          if (!billingStore.webhookSecret) {
+            sendJson(response, 503, {error: "Billing is paused until the Stripe webhook signing secret is configured."});
+            return;
+          }
+          const priceId = isTrial ? billingStore.trialPriceId : billingStore.priceId;
+          if (!priceId) {
+            sendJson(response, 503, {
+              error: isTrial
+                ? "The $1 introductory price is not configured."
+                : "The $10 monthly price is not configured."
+            });
+            return;
+          }
+          const price = await billingStore.stripe.prices.retrieve(priceId);
+          const validPrice = price.active &&
+            price.currency === "usd" &&
+            price.unit_amount === (isTrial ? 100 : 1000) &&
+            (isTrial
+              ? price.type === "one_time" && !price.recurring
+              : price.recurring && price.recurring.interval === "month" &&
+                price.recurring.interval_count === 1);
+          if (!validPrice) {
+            sendJson(response, 503, {
+              error: isTrial
+                ? "The configured intro price must be an active one-time $1 USD price."
+                : "The configured monthly price must be an active $10 USD recurring monthly price."
+            });
+            return;
+          }
+
           let customerId = typeof existing.customerId === "string" ? existing.customerId : "";
           if (!customerId) {
             const customer = await billingStore.stripe.customers.create({
               email: typeof decoded.email === "string" ? decoded.email : undefined,
               metadata: {firebaseUid: uid}
-            });
+            }, {idempotencyKey: "rainbet-customer-" + uid});
             customerId = customer.id;
+            await membershipRef.set({
+              schemaVersion: 1,
+              customerId,
+              updatedAt: new Date().toISOString()
+            }, {merge: true});
           }
           const hostHeader = request.headers.host;
-          const appUrl = settings.appPublicUrl || (typeof hostHeader === "string"
-            ? "https://" + hostHeader
-            : "");
-          if (!appUrl) {
-            sendJson(response, 500, {error: "The public app URL is not configured."});
+          const configuredAppUrl = settings.appPublicUrl || process.env.APP_PUBLIC_URL;
+          const appUrl = configuredAppUrl ||
+            (environment !== "production" && typeof hostHeader === "string"
+              ? "http://" + hostHeader
+              : "");
+          let parsedAppUrl;
+          try {
+            parsedAppUrl = new URL(appUrl);
+          } catch {
+            parsedAppUrl = null;
+          }
+          if (!parsedAppUrl ||
+              parsedAppUrl.username || parsedAppUrl.password ||
+              parsedAppUrl.search || parsedAppUrl.hash ||
+              (environment === "production" && parsedAppUrl.protocol !== "https:")) {
+            sendJson(response, 503, {error: "Set APP_PUBLIC_URL to this site's public HTTPS address before enabling checkout."});
             return;
           }
-          const isTrial = pathname === "/api/billing/trial";
-          if (isTrial && !billingStore.trialPriceId) {
-            sendJson(response, 503, {error: "The $1 seven-day trial price is not configured."});
-            return;
-          }
+
+          const baseUrl = parsedAppUrl.toString().replace(/\/$/, "");
+          const termsVersion = "membership-terms-v1";
+          const metadata = {
+            firebaseUid: uid,
+            purchaseType: isTrial ? "seven-day-trial" : "monthly",
+            termsVersion,
+            termsAcceptedAt: new Date().toISOString()
+          };
           const session = isTrial
             ? await billingStore.stripe.checkout.sessions.create({
                 mode: "payment",
                 customer: customerId,
-                line_items: [{price: billingStore.trialPriceId, quantity: 1}],
+                payment_method_types: ["card"],
+                line_items: [{price: priceId, quantity: 1}],
+                payment_intent_data: {
+                  setup_future_usage: "off_session",
+                  metadata
+                },
                 client_reference_id: uid,
-                metadata: {firebaseUid: uid, purchaseType: "seven-day-trial"},
-                success_url: appUrl.replace(/\/$/, "") + "/?billing=trial-success",
-                cancel_url: appUrl.replace(/\/$/, "") + "/?billing=cancel"
+                metadata,
+                custom_text: {
+                  submit: {
+                    message: "Pay $1 USD today. A $10 USD monthly subscription starts 7 days after payment unless you cancel first."
+                  }
+                },
+                success_url: baseUrl + "/?billing=trial-success",
+                cancel_url: baseUrl + "/?billing=cancel"
               })
             : await billingStore.stripe.checkout.sessions.create({
                 mode: "subscription",
                 customer: customerId,
-                line_items: [{price: billingStore.priceId, quantity: 1}],
-                allow_promotion_codes: true,
+                payment_method_types: ["card"],
+                line_items: [{price: priceId, quantity: 1}],
                 client_reference_id: uid,
-                metadata: {firebaseUid: uid, purchaseType: "monthly"},
-                subscription_data: {metadata: {firebaseUid: uid, purchaseType: "monthly"}},
-                success_url: appUrl.replace(/\/$/, "") + "/?billing=success",
-                cancel_url: appUrl.replace(/\/$/, "") + "/?billing=cancel"
+                metadata,
+                subscription_data: {metadata},
+                custom_text: {
+                  submit: {
+                    message: "Your $10 USD subscription renews monthly until canceled. You can cancel any time in your account."
+                  }
+                },
+                success_url: baseUrl + "/?billing=success",
+                cancel_url: baseUrl + "/?billing=cancel"
               });
           sendJson(response, 200, {url: session.url});
           return;
@@ -601,12 +862,25 @@ function createServer(options) {
           return;
         }
         const hostHeader = request.headers.host;
-        const appUrl = settings.appPublicUrl || (typeof hostHeader === "string"
-          ? "https://" + hostHeader
-          : "");
+        const configuredAppUrl = settings.appPublicUrl || process.env.APP_PUBLIC_URL;
+        const appUrl = configuredAppUrl ||
+          (environment !== "production" && typeof hostHeader === "string"
+            ? "http://" + hostHeader
+            : "");
+        let parsedAppUrl;
+        try {
+          parsedAppUrl = new URL(appUrl);
+        } catch {
+          parsedAppUrl = null;
+        }
+        if (!parsedAppUrl || parsedAppUrl.search || parsedAppUrl.hash ||
+            (environment === "production" && parsedAppUrl.protocol !== "https:")) {
+          sendJson(response, 503, {error: "Set APP_PUBLIC_URL to this site's public HTTPS address before opening subscription management."});
+          return;
+        }
         const portal = await billingStore.stripe.billingPortal.sessions.create({
           customer: membership.customerId,
-          return_url: appUrl.replace(/\/$/, "") + "/"
+          return_url: parsedAppUrl.toString().replace(/\/$/, "") + "/"
         });
         sendJson(response, 200, {url: portal.url});
       } catch (error) {

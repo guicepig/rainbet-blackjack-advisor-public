@@ -716,9 +716,12 @@ test("settings provide private account, appearance, interface, privacy, practice
   assert.match(html, /id="reduceMotion"/);
   assert.match(html, /id="showAiButton"/);
   assert.match(html, /Private to your account and not globally unique/);
+  assert.match(html, /restore synced hand history across devices/);
+  assert.match(html, /signing in alone does not grant paid access/);
   assert.match(moduleSource, /async loadProfile\(\)/);
   assert.match(moduleSource, /async saveProfile\(displayName\)/);
   assert.match(moduleSource, /async clearProfile\(\)/);
+  assert.match(moduleSource, /async mergeHistory\(localEntries, mergeEntries\)/);
   assert.match(firestoreRules, /match \/users\/\{userId\}\/profile\/\{profileId\}/);
   assert.match(firestoreRules, /request\.auth\.uid == userId\s*&&\s*profileId == "current"/);
   assert.match(firestoreRules, /displayName\.matches\("\^\[A-Za-z0-9_-\]\{3,20\}\$"\)/);
@@ -752,11 +755,14 @@ test("settings provide private account, appearance, interface, privacy, practice
   assert.match(renderConfig, /STRIPE_MONTHLY_PRICE_ID/);
 });
 
-test("public policy disclosures cover local data, optional providers, and current lack of payments", () => {
-  assert.match(html, /Start \$1 \/ 7-day trial/);
+test("privacy disclosures explain local data, account sync, and optional providers", () => {
+  assert.match(html, /Start \$1 intro week/);
   assert.match(html, /Upgrade for \$10\/month/);
+  assert.match(html, /\$1 USD today for 7 days, then \$10 USD\/month starting on day 8 unless canceled before renewal/);
+  assert.match(html, /id="membershipBillingConsent"/);
   assert.match(mainScript, /api\/billing\/trial/);
   assert.match(mainScript, /api\/billing\/checkout/);
+  assert.match(mainScript, /api\/billing\/cancel-intro/);
   assert.match(html, /id="privacyPolicyDialog"/);
   assert.match(html, /id="welcomeDialog"/);
   assert.match(html, /id="welcomePrivacyAccept"/);
@@ -775,6 +781,10 @@ test("public policy disclosures cover local data, optional providers, and curren
   assert.match(html, /positive approximate paired Brier-improvement lower bound/);
   assert.match(html, /Never use these amounts or progressions for real-money wagers/);
   assert.match(html, /Optional membership features are processed through Stripe/);
+  assert.match(html, /L’accès payant, lorsqu’il est configuré, nécessite une connexion Google et est traité par Stripe/);
+  assert.doesNotMatch(html, /Aucun abonnement payant ni paiement n’est actuellement offert/);
+  assert.match(html, /Firebase must have Google sign-in enabled, the site's domain authorized/);
+  assert.match(html, /Your balance, practice progress, preferences, and session-limit entries stay in this browser/);
   assert.match(html, /Optional shared hand statistics/);
   assert.match(html, /Existing history is not uploaded/);
   assert.match(html, /cannot be tied back to an individual/);
@@ -785,6 +795,143 @@ test("public policy disclosures cover local data, optional providers, and curren
   assert.match(html, /Version française/);
   assert.match(serverSource, /script-src[^"]*https:\/\/plausible\.io/);
   assert.match(serverSource, /connect-src[^"]*https:\/\/plausible\.io/);
+});
+
+test("Google sign-in errors explain Firebase setup and user-actionable failures", () => {
+  const messageStart = mainScript.indexOf("      function getGoogleSignInErrorMessage(");
+  const messageEnd = mainScript.indexOf("      function initializeCloudHistoryUi(", messageStart);
+  assert.ok(messageStart >= 0 && messageEnd > messageStart, "Google sign-in error mapper should exist");
+  const getGoogleSignInErrorMessage = new Function(
+    mainScript.slice(messageStart, messageEnd) + "return getGoogleSignInErrorMessage;"
+  )();
+  assert.match(getGoogleSignInErrorMessage({code: "auth/unauthorized-domain"}), /exact site domain/);
+  assert.match(getGoogleSignInErrorMessage({code: "auth/operation-not-allowed"}), /Enable the Google provider/);
+  assert.match(getGoogleSignInErrorMessage({code: "auth/popup-closed-by-user"}), /closed before it finished/);
+  assert.equal(getGoogleSignInErrorMessage({}), "Check the Firebase Google provider and authorized-domain settings, then try again.");
+});
+
+test("Google sign-in supports mobile redirect and recovers popup-blocked desktop sign-in", () => {
+  const moduleSource = fs.readFileSync(path.join(__dirname, "rainbet-cloud-history.mjs"), "utf8");
+  assert.match(moduleSource, /function shouldUseGoogleSignInRedirect\(\)/);
+  assert.match(moduleSource, /authSdk\.signInWithRedirect\(auth, provider\)/);
+  assert.match(moduleSource, /if \(!error \|\| error\.code !== "auth\/popup-blocked"\) throw error;/);
+  assert.match(moduleSource, /authSdk\.getRedirectResult\(auth\)/);
+  assert.match(moduleSource, /status: "auth-error"/);
+});
+
+test("membership status refresh updates account controls after the server response", async () => {
+  const start = mainScript.indexOf("      async function refreshMembershipStatus()");
+  const end = mainScript.indexOf("      async function startTrialMembershipCheckout()", start);
+  assert.ok(start >= 0 && end > start, "membership status updater should exist");
+  const elements = {
+    membershipStatus: {textContent: ""},
+    startTrialMembership: {hidden: false, disabled: false},
+    upgradeMembership: {hidden: false, disabled: false},
+    cancelUpcomingMembership: {hidden: false, disabled: false},
+    manageMembership: {hidden: false, disabled: false}
+  };
+  const state = new Function(
+    "byId",
+    "cloudHistoryUser",
+    "cloudHistoryClient",
+    "fetch",
+    "let membershipTier = 'free';\n" +
+      "let membershipSubscriptionStatus = 'inactive';\n" +
+      "let membershipTrialAvailable = true;\n" +
+      "let membershipRenewalCanceled = false;\n" +
+      "let membershipLoading = false;\n" +
+      "let controlsRefreshes = 0;\n" +
+      "function updateCloudHistoryControls() { controlsRefreshes++; }\n" +
+      mainScript.slice(start, end) +
+      "return {refreshMembershipStatus, getState: () => ({membershipTier, membershipLoading, controlsRefreshes})};"
+  )(
+    (id) => elements[id],
+    {uid: "user-1"},
+    {getBillingIdToken: async () => "id-token"},
+    async () => ({
+      ok: true,
+      json: async () => ({tier: "paid", subscriptionStatus: "active"})
+    })
+  );
+  await state.refreshMembershipStatus();
+  assert.equal(state.getState().membershipTier, "paid");
+  assert.equal(state.getState().membershipLoading, false);
+  assert.equal(state.getState().controlsRefreshes, 1);
+  assert.equal(elements.manageMembership.hidden, false);
+  assert.equal(elements.startTrialMembership.hidden, true);
+});
+
+test("membership checkout buttons stay gated until consent and send the agreed billing flag", async () => {
+  const start = mainScript.indexOf("      async function startTrialMembershipCheckout()");
+  const end = mainScript.indexOf("      async function cancelUpcomingMembership()", start);
+  assert.ok(start >= 0 && end > start, "membership checkout handlers should exist");
+  const elements = {
+    membershipBillingConsent: {checked: false},
+    membershipStatus: {textContent: ""},
+    startTrialMembership: {disabled: false},
+    upgradeMembership: {disabled: false}
+  };
+  const requests = [];
+  const redirects = [];
+  const handlers = new Function(
+    "byId",
+    "cloudHistoryUser",
+    "cloudHistoryClient",
+    "fetch",
+    "window",
+    "let membershipLoading = false;\n" +
+      "function updateCloudHistoryControls() {}\n" +
+      mainScript.slice(start, end) +
+      "return {startTrialMembershipCheckout, startMembershipCheckout};"
+  )(
+    (id) => elements[id],
+    {uid: "user-1"},
+    {getBillingIdToken: async () => "id-token"},
+    async (url, options) => {
+      requests.push({url, options});
+      return {ok: true, json: async () => ({url: "https://checkout.stripe.test/session"})};
+    },
+    {location: {assign: (url) => redirects.push(url)}}
+  );
+  await handlers.startTrialMembershipCheckout();
+  await handlers.startMembershipCheckout();
+  assert.equal(requests.length, 0);
+
+  elements.membershipBillingConsent.checked = true;
+  await handlers.startTrialMembershipCheckout();
+  await handlers.startMembershipCheckout();
+  assert.deepEqual(requests.map(({url}) => url), ["/api/billing/trial", "/api/billing/checkout"]);
+  assert.equal(requests.every(({options}) => JSON.parse(options.body).acceptRecurringBilling === true), true);
+  assert.deepEqual(redirects, [
+    "https://checkout.stripe.test/session",
+    "https://checkout.stripe.test/session"
+  ]);
+});
+
+test("saved-hand snapshot metrics recalculate whenever history refreshes", () => {
+  const snapshotStart = mainScript.indexOf("      function updatePremiumSessionSnapshot(");
+  const snapshotEnd = mainScript.indexOf("      let historySearchTimer", snapshotStart);
+  assert.ok(snapshotStart >= 0 && snapshotEnd > snapshotStart, "session snapshot updater should exist");
+  const values = new Map();
+  const updatePremiumSessionSnapshot = new Function(
+    "byId",
+    mainScript.slice(snapshotStart, snapshotEnd) + "return updatePremiumSessionSnapshot;"
+  )((id) => ({
+    set textContent(value) { values.set(id, value); }
+  }));
+  updatePremiumSessionSnapshot([
+    {result: "win", playerAction: "HIT", recommendedAction: "HIT", netResult: 1.5},
+    {result: null, playerAction: "STAND", recommendedAction: "HIT", netResult: -0.5}
+  ]);
+  assert.equal(values.get("premiumHandsSaved"), "2");
+  assert.equal(values.get("premiumResolvedHands"), "1");
+  assert.equal(values.get("premiumMatches"), "1/2");
+  assert.equal(values.get("premiumSessionNet"), "+1.00 fake");
+
+  const refreshStart = mainScript.indexOf("      function refreshHistory() {");
+  const refreshEnd = mainScript.indexOf("      function saveHandResult()", refreshStart);
+  assert.ok(refreshStart >= 0 && refreshEnd > refreshStart);
+  assert.match(mainScript.slice(refreshStart, refreshEnd), /updatePremiumSessionSnapshot\(entries\)/);
 });
 
 test("public page omits the strategy implementation and detailed action tables", () => {
@@ -3857,6 +4004,246 @@ async function listenForTest(testContext, server) {
   return "http://127.0.0.1:" + server.address().port;
 }
 
+function createBillingTestStore(initialMembership) {
+  const memberships = new Map();
+  const documentPaths = [];
+  const checkoutCalls = [];
+  const canceledSchedules = [];
+  const scheduleCalls = [];
+  let webhookEvent = null;
+  const membershipPath = "users/google-user/membership/current";
+  if (initialMembership) memberships.set(membershipPath, {...initialMembership});
+  const firestore = {
+    doc(...segments) {
+      assert.equal(segments.length, 1, "Firestore Admin doc() must receive one path string");
+      const path = segments[0];
+      documentPaths.push(path);
+      return {
+        async get() {
+          const value = memberships.get(path);
+          return {exists: Boolean(value), data: () => value && {...value}};
+        },
+        async set(value, options) {
+          memberships.set(path, options && options.merge
+            ? {...(memberships.get(path) || {}), ...value}
+            : {...value});
+        }
+      };
+    },
+    async runTransaction(callback) {
+      return callback({
+        async get(reference) {
+          return reference.get();
+        },
+        set(reference, value, options) {
+          return reference.set(value, options);
+        }
+      });
+    }
+  };
+  const stripe = {
+    prices: {
+      async retrieve(id) {
+        return id === "price_trial"
+          ? {active: true, currency: "usd", unit_amount: 100, type: "one_time"}
+          : {active: true, currency: "usd", unit_amount: 1000, recurring: {interval: "month", interval_count: 1}};
+      }
+    },
+    customers: {
+      async create() {
+        return {id: "cus_test"};
+      }
+    },
+    checkout: {
+      sessions: {
+        async create(options) {
+          checkoutCalls.push(options);
+          return {url: "https://checkout.stripe.test/session"};
+        }
+      }
+    },
+    paymentIntents: {
+      async retrieve(id) {
+        assert.equal(id, "pi_test");
+        return {payment_method: "pm_test"};
+      }
+    },
+    refunds: {
+      async create() {
+        return {id: "re_test"};
+      }
+    },
+    subscriptionSchedules: {
+      async create(options, requestOptions) {
+        scheduleCalls.push({options, requestOptions});
+        return {id: "sub_sched_test"};
+      },
+      async retrieve(id) {
+        return {id, status: "not_started"};
+      },
+      async cancel(id) {
+        canceledSchedules.push(id);
+        return {id, status: "canceled"};
+      }
+    },
+    webhooks: {
+      constructEvent(rawBody, signature, secret) {
+        assert.equal(signature, "test-signature");
+        assert.equal(secret, "whsec_test");
+        assert.ok(Buffer.isBuffer(rawBody));
+        return webhookEvent;
+      }
+    }
+  };
+  return {
+    store: {
+      auth: {
+        async verifyIdToken(token) {
+          if (token === "google-token") {
+            return {uid: "google-user", email: "user@example.test", firebase: {sign_in_provider: "google.com"}};
+          }
+          if (token === "other-token") {
+            return {uid: "google-user", firebase: {sign_in_provider: "password"}};
+          }
+          throw new Error("invalid token");
+        }
+      },
+      firestore,
+      stripe,
+      webhookSecret: "whsec_test",
+      trialPriceId: "price_trial",
+      priceId: "price_monthly"
+    },
+    memberships,
+    documentPaths,
+    checkoutCalls,
+    canceledSchedules,
+    scheduleCalls,
+    setWebhookEvent(event) {
+      webhookEvent = event;
+    }
+  };
+}
+
+test("membership checkout requires explicit consent and validates the Google account", async (testContext) => {
+  const mock = createBillingTestStore();
+  const server = createGeminiServer({
+    apiKey: "",
+    billingStore: mock.store,
+    appPublicUrl: "https://advisor.example"
+  });
+  const origin = await listenForTest(testContext, server);
+  const request = (path, token, body) => fetch(origin + path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      ...(token ? {Authorization: "Bearer " + token} : {})
+    },
+    body: JSON.stringify(body || {})
+  });
+
+  assert.equal((await request("/api/billing/status", null)).status, 401);
+  assert.equal((await request("/api/billing/trial", "other-token", {acceptRecurringBilling: true})).status, 403);
+  assert.equal((await request("/api/billing/trial", "google-token")).status, 400);
+  assert.equal(mock.checkoutCalls.length, 0);
+
+  const introResponse = await request("/api/billing/trial", "google-token", {acceptRecurringBilling: true});
+  assert.equal(introResponse.status, 200);
+  assert.equal((await introResponse.json()).url, "https://checkout.stripe.test/session");
+  assert.equal(mock.checkoutCalls[0].mode, "payment");
+  assert.equal(mock.checkoutCalls[0].payment_intent_data.setup_future_usage, "off_session");
+  assert.equal(mock.checkoutCalls[0].metadata.termsVersion, "membership-terms-v1");
+  assert.equal(mock.documentPaths.every((path) => path === "users/google-user/membership/current"), true);
+
+  const monthlyResponse = await request("/api/billing/checkout", "google-token", {acceptRecurringBilling: true});
+  assert.equal(monthlyResponse.status, 200);
+  assert.equal(mock.checkoutCalls[1].mode, "subscription");
+  assert.equal(mock.checkoutCalls[1].line_items[0].price, "price_monthly");
+});
+
+test("paid intro webhook provisions one seven-day intro and one monthly schedule", async (testContext) => {
+  const mock = createBillingTestStore();
+  const created = Math.floor(Date.now() / 1000);
+  mock.setWebhookEvent({
+    id: "evt_intro_paid",
+    type: "checkout.session.completed",
+    created,
+    data: {
+      object: {
+        id: "cs_intro",
+        mode: "payment",
+        payment_status: "paid",
+        client_reference_id: "google-user",
+        customer: "cus_test",
+        payment_intent: "pi_test",
+        metadata: {purchaseType: "seven-day-trial"}
+      }
+    }
+  });
+  const server = createGeminiServer({apiKey: "", billingStore: mock.store});
+  const origin = await listenForTest(testContext, server);
+  const deliverWebhook = () => fetch(origin + "/api/billing/webhook", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "Stripe-Signature": "test-signature"},
+    body: "{}"
+  });
+
+  assert.equal((await deliverWebhook()).status, 200);
+  const membership = mock.memberships.get("users/google-user/membership/current");
+  assert.equal(membership.tier, "paid");
+  assert.equal(membership.subscriptionStatus, "trialing");
+  assert.equal(membership.trialExpiresAt, new Date((created + 7 * 24 * 60 * 60) * 1000).toISOString());
+  assert.equal(membership.trialClaimedAt, new Date(created * 1000).toISOString());
+  assert.equal(membership.subscriptionScheduleId, "sub_sched_test");
+  assert.equal(mock.scheduleCalls.length, 1);
+  assert.equal(mock.scheduleCalls[0].options.start_date, created + 7 * 24 * 60 * 60);
+  assert.equal(mock.scheduleCalls[0].options.default_settings.default_payment_method, "pm_test");
+  assert.equal(mock.scheduleCalls[0].options.phases[0].items[0].price, "price_monthly");
+  assert.equal(mock.scheduleCalls[0].requestOptions.idempotencyKey, "rainbet-seven-day-conversion-cs_intro");
+
+  assert.equal((await deliverWebhook()).status, 200);
+  assert.equal(mock.scheduleCalls.length, 1, "replayed checkout event must not create a second schedule");
+});
+
+test("intro renewal cancellation keeps paid access through the seven-day period", async (testContext) => {
+  const mock = createBillingTestStore({
+    tier: "paid",
+    subscriptionStatus: "trialing",
+    trialClaimedAt: new Date().toISOString(),
+    trialExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    subscriptionScheduleId: "sub_sched_test"
+  });
+  const server = createGeminiServer({apiKey: "", billingStore: mock.store});
+  const origin = await listenForTest(testContext, server);
+  const response = await fetch(origin + "/api/billing/cancel-intro", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Authorization: "Bearer google-token"
+    },
+    body: "{}"
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    canceled: true,
+    trialExpiresAt: mock.memberships.get("users/google-user/membership/current").trialExpiresAt
+  });
+  assert.deepEqual(mock.canceledSchedules, ["sub_sched_test"]);
+  const statusResponse = await fetch(origin + "/api/billing/status", {
+    method: "POST",
+    headers: {Origin: origin, Authorization: "Bearer google-token"}
+  });
+  assert.deepEqual(await statusResponse.json(), {
+    tier: "paid",
+    subscriptionStatus: "trialing",
+    trialExpiresAt: mock.memberships.get("users/google-user/membership/current").trialExpiresAt,
+    trialAvailable: false,
+    renewalCanceled: true
+  });
+});
+
 test("shared-training endpoint requires same-origin anonymous auth and accepts only when configured", async (testContext) => {
   const submissions = [];
   const server = createGeminiServer({
@@ -4164,7 +4551,10 @@ test("Gemini server serves the app and sends the question with fixed, public ref
   const cloudModuleResponse = await fetch(origin + "/rainbet-cloud-history.mjs");
   assert.equal(cloudModuleResponse.status, 200);
   assert.match(cloudModuleResponse.headers.get("content-type"), /javascript/);
-  assert.match(await cloudModuleResponse.text(), /signInWithPopup/);
+  const cloudModule = await cloudModuleResponse.text();
+  assert.match(cloudModule, /signInWithPopup/);
+  assert.match(cloudModule, /signInWithRedirect/);
+  assert.match(cloudModule, /getRedirectResult/);
 
   const foreignRequest = await fetch(origin + "/api/chat", {
     method: "POST",

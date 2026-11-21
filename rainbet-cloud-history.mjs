@@ -15,6 +15,15 @@ function hasFirebaseConfig(config) {
     typeof config.appId === "string" && config.appId.trim();
 }
 
+function shouldUseGoogleSignInRedirect() {
+  const nav = window.navigator;
+  if (nav.userAgentData && typeof nav.userAgentData.mobile === "boolean") {
+    return nav.userAgentData.mobile;
+  }
+  return /Android|iPhone|iPad|iPod|IEMobile|Windows Phone/i.test(nav.userAgent || "") ||
+    /Macintosh/i.test(nav.userAgent || "") && nav.maxTouchPoints > 1;
+}
+
 async function initializeCloudHistory() {
   const config = window.rainbetFirebaseConfig;
   if (!hasFirebaseConfig(config)) {
@@ -43,7 +52,19 @@ async function initializeCloudHistory() {
 
     window.rainbetCloudHistory = {
       async signIn() {
-        const credential = await authSdk.signInWithPopup(auth, new authSdk.GoogleAuthProvider());
+        const provider = new authSdk.GoogleAuthProvider();
+        if (shouldUseGoogleSignInRedirect()) {
+          await authSdk.signInWithRedirect(auth, provider);
+          return {redirecting: true};
+        }
+        let credential;
+        try {
+          credential = await authSdk.signInWithPopup(auth, provider);
+        } catch (error) {
+          if (!error || error.code !== "auth/popup-blocked") throw error;
+          await authSdk.signInWithRedirect(auth, provider);
+          return {redirecting: true};
+        }
         const accountInfo = authSdk.getAdditionalUserInfo(credential);
         return {isNewUser: Boolean(accountInfo && accountInfo.isNewUser)};
       },
@@ -170,6 +191,22 @@ async function initializeCloudHistory() {
         message: "Could not check the Google sign-in state. Reload the page and try again."
       });
     });
+    try {
+      const credential = await authSdk.getRedirectResult(auth);
+      if (credential) {
+        const accountInfo = authSdk.getAdditionalUserInfo(credential);
+        emitCloudEvent({
+          status: "sign-in-result",
+          isNewUser: Boolean(accountInfo && accountInfo.isNewUser)
+        });
+      }
+    } catch (error) {
+      emitCloudEvent({
+        status: "auth-error",
+        code: error && typeof error.code === "string" ? error.code : "",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     emitCloudEvent({
