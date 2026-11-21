@@ -520,6 +520,16 @@
     .advisor-status { min-height: 1.4em; margin: 3px 0 0; font-size: .78rem; }
     .advisor-status.error { color: #ffbf9b; }
     .advisor-live-reason { margin: 0; color: #c5d0ca; font-size: .8rem; line-height: 1.35; }
+    .advisor-outcome-chances {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+      margin: 8px 0 5px;
+    }
+    .advisor-outcome-chances div {
+      display: grid; gap: 2px; padding: 8px 9px; border: 1px solid rgba(154, 207, 170, .22);
+      border-radius: 10px; background: rgba(8, 18, 11, .32); text-align: center;
+    }
+    .advisor-outcome-chances span { color: #aebcaf; font-size: .64rem; text-transform: uppercase; letter-spacing: .08em; }
+    .advisor-outcome-chances strong { color: #dff7e5; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
     .advisor-live-insurance { margin: 3px 0 0; color: var(--muted); font-size: .72rem; }
     .advisor-wager-card {
       grid-column: 1 / -1; margin-top: 6px; padding: 16px;
@@ -1551,6 +1561,12 @@
           <details class="advisor-explanation">
             <summary>Why this move?</summary>
             <p class="advisor-live-reason" id="reason">The private advisor server will calculate a recommendation for this hand.</p>
+            <div class="advisor-outcome-chances" id="currentHandOutcomeCard" aria-label="Estimated outcome chances">
+              <div><span>Win</span><strong id="currentHandWinChance">—</strong></div>
+              <div><span>Push</span><strong id="currentHandPushChance">—</strong></div>
+              <div><span>Loss</span><strong id="currentHandLossChance">—</strong></div>
+            </div>
+            <p class="fine" id="currentHandOutcomeNote">Outcome chances appear after the recommendation is calculated.</p>
             <p class="fine" id="decisionAnalysis" aria-live="polite"></p>
             <p class="advisor-live-insurance" id="insurance">Insurance: not offered for this upcard.</p>
           </details>
@@ -1891,14 +1907,16 @@ node .\rainbet-gemini-server.cjs</code></pre>
       </div>
       <p class="fine">Play hands here with fictional credits. Each round uses a new local eight-deck shuffle; this is a practice simulation, not Rainbet’s sequence generator or an account-connected game.</p>
       <p class="fine">Assumptions: dealer stands on soft 17, naturals pay 3:2, one split per hand, split aces receive one card each and stand automatically, and doubles are allowed on any two cards. The table DAS setting above applies here; when it is unspecified, the simulator uses a no-DAS practice assumption. Insurance, side bets, surrender, and resplitting are omitted because Rainbet’s public rules do not establish all details.</p>
-      <p class="practice-balance"><span>Practice balance</span><strong><span id="simBalance">1,000.00</span><small>FAKE CREDITS</small></strong></p>
+      <p class="practice-balance"><span>Practice balance</span><strong><span id="simBalance">100.00</span><small>FAKE CREDITS</small></strong></p>
       <div class="game-controls">
         <label>Wager in fake credits
-          <input id="simBet" type="number" min="1" step="1" value="10">
+          <input id="simBet" type="number" min="1" step="1" value="1">
         </label>
         <button class="sim-primary" id="simDeal" type="button">Deal hand</button>
         <button class="secondary" id="simReset" type="button">Reset practice balance</button>
+        <button class="secondary" id="simStartDoubleRun" type="button">Start 100 → 200 run</button>
       </div>
+      <p id="simDoubleRunStatus" class="fine" aria-live="polite">Start a fictional 100-credit run. It stops automatically at 200 fake credits or when the balance reaches zero.</p>
       <p id="simMessage" class="game-status" aria-live="polite">Choose a practice wager and deal.</p>
       <div class="practice-table" aria-label="Blackjack practice table" aria-describedby="simMessage">
         <div class="game-row">
@@ -5499,6 +5517,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
               ? formatDecisionAnalysis(result.analysis)
               : "Current-hand win/push/loss probabilities are unavailable for this split or dealer upcard. The displayed action uses the published-rule basic-strategy baseline; separate wager sizing can still use validated saved history.";
           }
+          renderCurrentHandOutcome(result);
           const type = result.hand.soft ? "Soft " : "Hard ";
           const drawSummary = afterSplit
             ? " (split hand " + splitHandIndex + ")"
@@ -5882,8 +5901,11 @@ node .\rainbet-gemini-server.cjs</code></pre>
       function useSuggestedWager() {
         if (!Number.isFinite(suggestedWagerAmount) || suggestedWagerAmount <= 0) return;
         byId("handWager").value = suggestedWagerAmount.toFixed(2);
+        if (byId("simBet")) {
+          byId("simBet").value = String(Math.max(1, Math.ceil(suggestedWagerAmount)));
+        }
         byId("advisorWagerNote").textContent =
-          "Pre-deal fictional amount copied. Use it before entering cards for the next practice hand; nothing is sent to Rainbet.";
+          "Pre-deal fictional amount copied to the hand form and practice table. Use it before entering cards for the next practice hand; nothing is sent to Rainbet.";
       }
 
       function calculateHandBalanceChange(result, wagerAmount, netResult) {
@@ -7670,6 +7692,40 @@ node .\rainbet-gemini-server.cjs</code></pre>
               byId("handResultMessage").textContent = "Add the action and outcome for the saved hand: " +
                 pendingConsultation.cards.join(", ") + " vs. dealer " + pendingConsultation.dealer + ".";
             }
+
+            function renderCurrentHandOutcome(result) {
+              const win = byId("currentHandWinChance");
+              const push = byId("currentHandPushChance");
+              const loss = byId("currentHandLossChance");
+              const note = byId("currentHandOutcomeNote");
+              if (!win || !push || !loss || !note) return;
+              if (!result || result.hand.total > 21) {
+                win.textContent = "0.0%";
+                push.textContent = "0.0%";
+                loss.textContent = "100.0%";
+                note.textContent = "The hand is already bust, so loss is certain under the entered cards.";
+                return;
+              }
+              if (!result.analysis || !result.action) {
+                win.textContent = push.textContent = loss.textContent = "—";
+                note.textContent = "Outcome chances are unavailable for this split or dealer upcard.";
+                return;
+              }
+              const actionKey = String(result.analysis.bestAction || result.action).toLowerCase();
+              const outcomes = result.analysis.outcomeProbabilities &&
+                result.analysis.outcomeProbabilities[actionKey];
+              if (!outcomes || !["win", "push", "loss"].every((key) =>
+                Number.isFinite(outcomes[key]) && outcomes[key] >= 0 && outcomes[key] <= 1)) {
+                win.textContent = push.textContent = loss.textContent = "—";
+                note.textContent = "Outcome chances are unavailable for this hand.";
+                return;
+              }
+              win.textContent = (outcomes.win * 100).toFixed(1) + "%";
+              push.textContent = (outcomes.push * 100).toFixed(1) + "%";
+              loss.textContent = (outcomes.loss * 100).toFixed(1) + "%";
+              note.textContent = "Estimated for " + actionKey.toUpperCase() +
+                " using 8-deck S17 rank probabilities. Approximation, not a Rainbet future outcome.";
+            }
           }
           const counts = entries.reduce((result, entry) => {
             if (entry.result === "win" || entry.result === "loss" || entry.result === "push") result[entry.result]++;
@@ -8329,7 +8385,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         { name: "hearts", symbol: "♥", red: true },
         { name: "spades", symbol: "♠", red: false }
       ];
-      let balance = 1000;
+      let balance = 100;
       let shoe = [];
       let dealer = [];
       let hands = [];
@@ -8338,6 +8394,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       let roundNumber = 0;
       let roundMessage = "Choose a practice wager and deal.";
       let roundDasRule = "unknown";
+      let doubleRunActive = false;
       const cardAnimationState = { seen: new WeakSet(), order: 0, staggerMs: 85 };
       let dealerHoleWasHidden = false;
 
@@ -8489,10 +8546,12 @@ node .\rainbet-gemini-server.cjs</code></pre>
           (current.split && roundDasRule !== "allowed") || balance < current.bet;
         byId("simSplit").disabled = !active || current.cards.length !== 2 ||
           current.cards[0].rank !== current.cards[1].rank || current.split || balance < current.bet;
-        byId("simDeal").disabled = phase === "player" || balance < 1;
+        byId("simDeal").disabled = phase === "player" || balance < 1 ||
+          (doubleRunActive && balance >= 200);
         byId("simBet").disabled = phase === "player";
         byId("dasRule").disabled = phase === "player";
         byId("simReset").disabled = phase === "player";
+        byId("simStartDoubleRun").disabled = phase === "player";
         byId("simDeal").textContent = phase === "settled" ? "Deal next hand" : "Deal hand";
         byId("simApplyHand").disabled = !active;
       }
@@ -8500,6 +8559,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       function endImmediately(message) {
         phase = "settled";
         roundMessage = message + " Balance: " + format(balance) + " fake credits.";
+        updateDoubleRunStatus();
         render();
       }
 
@@ -8581,6 +8641,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         });
         phase = "settled";
         roundMessage = outcomes.join(" · ") + ". Balance: " + format(balance) + " fake credits.";
+        updateDoubleRunStatus();
         render();
       }
 
@@ -8657,16 +8718,52 @@ node .\rainbet-gemini-server.cjs</code></pre>
         }));
       }
 
-      function resetBalance() {
+      function updateDoubleRunStatus() {
+        if (!doubleRunActive) return;
+        if (balance >= 200) {
+          doubleRunActive = false;
+          byId("simDoubleRunStatus").textContent = "Target reached: the fictional balance doubled to 200 fake credits. The run stopped.";
+          byId("simStartDoubleRun").textContent = "Run reached target";
+        } else if (balance <= 0) {
+          doubleRunActive = false;
+          byId("simDoubleRunStatus").textContent = "Run stopped: the fictional balance reached 0 fake credits.";
+          byId("simStartDoubleRun").textContent = "Run stopped";
+        } else {
+          byId("simDoubleRunStatus").textContent = "Double-to-200 run active: " + format(balance) +
+            " fake credits. Target: 200 fake credits.";
+        }
+      }
+
+      function startDoubleRun() {
         if (phase === "player") return;
-        balance = 1000;
+        balance = 100;
+        doubleRunActive = true;
         shoe = [];
         dealer = [];
         hands = [];
         currentIndex = 0;
         phase = "betting";
         roundNumber = 0;
-        roundMessage = "Practice balance reset to 1,000 fake credits.";
+        roundMessage = "Double-to-200 run started at 100 fictional credits.";
+        byId("simBet").value = "1";
+        byId("simStartDoubleRun").textContent = "Run active";
+        byId("simDoubleRunStatus").textContent = "Double-to-200 run active: 100 fake credits. Target: 200 fake credits.";
+        render();
+      }
+
+      function resetBalance() {
+        if (phase === "player") return;
+        balance = 100;
+        doubleRunActive = false;
+        shoe = [];
+        dealer = [];
+        hands = [];
+        currentIndex = 0;
+        phase = "betting";
+        roundNumber = 0;
+        roundMessage = "Practice balance reset to 100 fake credits.";
+        byId("simDoubleRunStatus").textContent = "Run stopped and reset. Start another fictional 100 → 200 run whenever ready.";
+        byId("simStartDoubleRun").textContent = "Start 100 → 200 run";
         render();
       }
 
@@ -8677,6 +8774,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       byId("simSplit").addEventListener("click", split);
       byId("simApplyHand").addEventListener("click", applyHandToAdvisor);
       byId("simReset").addEventListener("click", resetBalance);
+      byId("simStartDoubleRun").addEventListener("click", startDoubleRun);
       byId("simAnimationSpeed").addEventListener("change", updateSimulatorAnimationSpeed);
       byId("dasRule").addEventListener("change", render);
       updateSimulatorAnimationSpeed();

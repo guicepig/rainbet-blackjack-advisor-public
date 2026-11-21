@@ -2292,6 +2292,15 @@ test("8-deck expected-value analysis compares available actions with a replaceme
   }), null);
 });
 
+test("recommendation panel exposes visible win push and loss percentages", () => {
+  assert.match(html, /id="currentHandOutcomeCard"/);
+  assert.match(html, /id="currentHandWinChance"/);
+  assert.match(html, /id="currentHandPushChance"/);
+  assert.match(html, /id="currentHandLossChance"/);
+  assert.match(html, /function renderCurrentHandOutcome\(result\)/);
+  assert.match(html, /Estimated for " \+ actionKey\.toUpperCase\(\)/);
+});
+
 test("current-hand outcome distributions normalize for all supported starting hands and dealer upcards", () => {
   const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
   for (const first of ranks) {
@@ -3307,6 +3316,8 @@ test("using the advisor automatically records the server recommendation without 
     "formatDecisionAnalysis",
     "getAdvisorInputPrompt",
     "renderSuggestedWager",
+    "renderCurrentHandOutcome",
+    "advisorRequestErrorMessage",
     mainScript.slice(decideStart, recordConsultationStart) + "return decide;"
   )(
     (id) => elements[id],
@@ -3336,7 +3347,9 @@ test("using the advisor automatically records the server recommendation without 
     () => { refreshCalls++; },
     () => "finite-shoe EV",
     getAdvisorInputPrompt,
-    () => {}
+    () => {},
+    () => {},
+    (error) => error && typeof error.message === "string" ? error.message : "The advisor request failed."
   );
 
   await decide(true);
