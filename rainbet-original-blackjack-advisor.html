@@ -542,6 +542,27 @@
     .advisor-live-hand { margin: 0 0 2px; color: #e6f3e9; font-size: .85rem; font-weight: 800; }
     .advisor-status { min-height: 1.4em; margin: 3px 0 0; font-size: .78rem; }
     .advisor-status.error { color: #ffbf9b; }
+    .membership-required-prompt {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+      margin: 6px 0 12px; padding: 11px 13px;
+      border: 1px solid var(--accent-strong); border-radius: 12px;
+      background: var(--panel-raised);
+    }
+    .membership-required-prompt[hidden] { display: none; }
+    .membership-required-prompt p { flex: 1 1 260px; margin: 0; font-size: .82rem; }
+    .membership-required-prompt button { margin: 0; }
+    .membership-options-card {
+      margin-top: 20px; padding: 16px;
+      border: 1px solid var(--line); border-radius: 14px;
+      background: var(--panel);
+    }
+    .membership-options-card h3 { margin-top: 0; }
+    .quick-nav .membership-nav-button {
+      border-color: var(--accent-strong);
+      background: linear-gradient(145deg, var(--theme-button-start, #607998), var(--theme-button-end, #465b78));
+      color: var(--theme-button-text, #fff);
+      font-weight: 850;
+    }
     .advisor-live-reason { margin: 0; color: #c5d0ca; font-size: .8rem; line-height: 1.35; }
     .advisor-decision-metrics {
       grid-column: 1 / -1;
@@ -1599,6 +1620,7 @@
       <button type="button" data-feature-target="advisor" aria-pressed="true">Advisor</button>
       <button type="button" data-feature-target="history" aria-pressed="false">Hand history</button>
       <button type="button" data-feature-target="practice" aria-pressed="false">Practice</button>
+      <button type="button" class="membership-nav-button" id="openMembership">Membership</button>
       <details class="quick-nav-more">
         <summary>Tools</summary>
         <div class="quick-nav-more-menu">
@@ -1661,6 +1683,10 @@
           <p class="visually-hidden" id="action" hidden>CHECKING</p>
           <p class="advisor-live-hand" id="handSummary">Hard 16 vs. dealer 10</p>
           <p class="fine advisor-status" id="advisorStatus" aria-live="polite"></p>
+          <div class="membership-required-prompt" id="membershipRequiredPrompt" hidden>
+            <p><strong>Unlock the full advisor:</strong> sign in with Google, then choose $1 for 7 days followed by $10/month, or start $10/month now. Cancel before renewal to avoid the next charge.</p>
+            <button type="button" id="openMembershipFromPrompt">View membership options</button>
+          </div>
           <details class="advisor-explanation">
             <summary>Why this move?</summary>
             <p class="advisor-live-reason" id="reason">The private advisor server will calculate a recommendation for this hand.</p>
@@ -2491,18 +2517,20 @@ node .\rainbet-gemini-server.cjs</code></pre>
               <button type="button" class="secondary" id="googleHistorySync" hidden disabled>Sync history</button>
               <button type="button" class="secondary" id="googleHistorySignOut" hidden>Sign out</button>
             </div>
-            <h4>Monthly membership</h4>
-            <p class="fine">Intro offer: $1 USD today for 7 days, then $10 USD/month starting on day 8 unless canceled before renewal. Monthly plan: $10 USD now, renewing monthly until canceled. Taxes may apply.</p>
-            <label class="fine" for="membershipBillingConsent">
-              <input id="membershipBillingConsent" type="checkbox">
-              I understand and agree to the recurring billing and cancellation terms for the plan I select.
-            </label>
-            <p id="membershipStatus" class="fine" aria-live="polite">Sign in with Google to view or manage membership.</p>
-            <div class="settings-controls">
-              <button type="button" id="startTrialMembership" hidden disabled>Start $1 intro week</button>
-              <button type="button" id="upgradeMembership" hidden disabled>Upgrade for $10/month</button>
-              <button type="button" class="secondary" id="cancelUpcomingMembership" hidden disabled>Cancel upcoming $10/month renewal</button>
-              <button type="button" class="secondary" id="manageMembership" hidden disabled>Manage subscription</button>
+            <div class="membership-options-card" id="membershipOptions" tabindex="-1" aria-labelledby="membershipOptionsTitle">
+              <h3 id="membershipOptionsTitle">Membership options</h3>
+              <p class="fine">Intro offer: $1 USD today for 7 days, then $10 USD/month starting on day 8 unless canceled before renewal. Monthly plan: $10 USD now, renewing monthly until canceled. Taxes may apply. Sign in with Google first, then choose a plan to continue to secure Stripe checkout.</p>
+              <label class="fine" for="membershipBillingConsent">
+                <input id="membershipBillingConsent" type="checkbox">
+                I understand and agree to the recurring billing and cancellation terms for the plan I select.
+              </label>
+              <p id="membershipStatus" class="fine" aria-live="polite">Sign in with Google to view or manage membership.</p>
+              <div class="settings-controls">
+                <button type="button" id="startTrialMembership" hidden disabled>Start $1 intro week</button>
+                <button type="button" id="upgradeMembership" hidden disabled>Upgrade for $10/month</button>
+                <button type="button" class="secondary" id="cancelUpcomingMembership" hidden disabled>Cancel upcoming $10/month renewal</button>
+                <button type="button" class="secondary" id="manageMembership" hidden disabled>Manage subscription</button>
+              </div>
             </div>
             <p id="googleHistoryStatus" class="fine" aria-live="polite">Checking cloud-sync setup…</p>
             <details>
@@ -5456,9 +5484,11 @@ node .\rainbet-gemini-server.cjs</code></pre>
           throw new Error("The advisor server returned an invalid response.");
         }
         if (!response.ok) {
-          throw new Error(payload && typeof payload.error === "string"
+          const error = new Error(payload && typeof payload.error === "string"
             ? payload.error
             : "The advisor server could not calculate this hand.");
+          error.status = response.status;
+          throw error;
         }
         const actions = ["HIT", "STAND", "DOUBLE", "SPLIT"];
         if (!payload || !actions.includes(payload.action) ||
@@ -5510,6 +5540,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
       }
 
       async function decide(recordConsultation) {
+        if (byId("membershipRequiredPrompt")) byId("membershipRequiredPrompt").hidden = true;
         if (strategyRequestState.controller) strategyRequestState.controller.abort();
         const controller = new AbortController();
         strategyRequestState.controller = controller;
@@ -5702,6 +5733,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
           byId("reason").textContent = errorMessage;
           byId("advisorStatus").textContent = errorMessage;
           byId("advisorStatus").classList.add("error");
+          if (byId("membershipRequiredPrompt")) {
+            byId("membershipRequiredPrompt").hidden = error.status !== 402;
+          }
           byId("handSummary").textContent = requestStarted ? "Hand advice requires the private advisor service." : "";
           return null;
         } finally {
@@ -6402,6 +6436,17 @@ node .\rainbet-gemini-server.cjs</code></pre>
           });
         });
         byId("openSettings").addEventListener("click", openSettings);
+        const openMembershipOptions = () => {
+          openSettings();
+          const accountTarget = settingsTargets.find((button) => button.dataset.settingsTarget === "account");
+          if (!accountTarget) throw new Error("The account settings section is unavailable.");
+          accountTarget.click();
+          const destination = cloudHistoryUser ? byId("membershipOptions") : byId("googleHistorySettingsSignIn");
+          destination.focus({preventScroll: true});
+          destination.scrollIntoView({block: "start"});
+        };
+        byId("openMembership").addEventListener("click", openMembershipOptions);
+        byId("openMembershipFromPrompt").addEventListener("click", openMembershipOptions);
         byId("openSettingsFromHistory").addEventListener("click", openSettings);
         byId("closeSettings").addEventListener("click", () => dialog.close());
         byId("manageAnalyticsFromSettings").addEventListener("click", () => {

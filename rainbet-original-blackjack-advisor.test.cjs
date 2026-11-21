@@ -798,6 +798,15 @@ test("privacy disclosures explain local data, account sync, and optional provide
   assert.match(serverSource, /connect-src[^"]*https:\/\/plausible\.io/);
 });
 
+test("membership purchase is reachable from navigation and the advisor paywall", () => {
+  assert.match(html, /id="openMembership">Membership<\/button>/);
+  assert.match(html, /id="membershipRequiredPrompt" hidden/);
+  assert.match(html, /id="openMembershipFromPrompt">View membership options<\/button>/);
+  assert.match(html, /id="membershipOptions" tabindex="-1"/);
+  assert.match(mainScript, /byId\("openMembership"\)\.addEventListener\("click", openMembershipOptions\)/);
+  assert.match(mainScript, /byId\("openMembershipFromPrompt"\)\.addEventListener\("click", openMembershipOptions\)/);
+});
+
 test("Google sign-in errors explain Firebase setup and user-actionable failures", () => {
   const messageStart = mainScript.indexOf("      function getGoogleSignInErrorMessage(");
   const messageEnd = mainScript.indexOf("      function initializeCloudHistoryUi(", messageStart);
@@ -3464,6 +3473,7 @@ test("using the advisor automatically records the server recommendation without 
     primaryMove: {textContent: ""},
     reason: {textContent: ""},
     advisorStatus: {textContent: "", classList: {add() {}, remove() {}}},
+    membershipRequiredPrompt: {hidden: true},
     decisionAnalysis: {textContent: ""},
     handSummary: {textContent: ""},
     moveActionPanel: {hidden: true, scrollIntoView() {}},
@@ -3482,6 +3492,7 @@ test("using the advisor automatically records the server recommendation without 
   let refreshCalls = 0;
   const flowSteps = [];
   const splitAvailability = [];
+  let requestFailure = null;
   const localStorage = {
     setItem(key, value) {
       assert.equal(key, "rainbet-original-blackjack-history-v1");
@@ -3509,7 +3520,10 @@ test("using the advisor automatically records the server recommendation without 
   )(
     (id) => elements[id],
     parseRank,
-    async (cards, dealer, options) => actionForContext(cards, dealer, options),
+    async (cards, dealer, options) => {
+      if (requestFailure) throw requestFailure;
+      return actionForContext(cards, dealer, options);
+    },
     AbortController,
     {version: 0, controller: null},
     {location: {protocol: "http:"}},
@@ -3606,6 +3620,18 @@ test("using the advisor automatically records the server recommendation without 
   assert.equal(elements.action.textContent, "CHECK INPUT");
   assert.match(elements.reason.textContent, /original pair/i);
   assert.equal(splitAvailability[6], false, "an invalid split hand should relock split entry");
+
+  elements.playerCards.value = "10, 6";
+  elements.hitCards.value = "";
+  elements.splitHand2Cards.value = "";
+  elements.advisorCardTarget.value = "player";
+  requestFailure = Object.assign(new Error("Active membership required."), {status: 402});
+  await decide(false);
+  assert.equal(elements.membershipRequiredPrompt.hidden, false, "membership errors expose the direct purchase path");
+
+  requestFailure = Object.assign(new Error("Billing is temporarily unavailable."), {status: 503});
+  await decide(false);
+  assert.equal(elements.membershipRequiredPrompt.hidden, true, "non-membership service errors do not show purchase prompts");
 });
 
 test("final player-card reader combines hit draws and the selected split hand", () => {
