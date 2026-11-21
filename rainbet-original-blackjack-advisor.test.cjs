@@ -1591,13 +1591,8 @@ test("visual card picker adds and removes selected cards in the advice input sta
   const pickerEnd = mainScript.indexOf("      let selectedFollowupSuit", pickerStart);
   assert.ok(pickerStart >= 0 && pickerEnd > pickerStart, "visual card picker should be present");
   let previewUpdates = 0;
-  let prefersReducedMotion = false;
   const fakeWindow = {
-    setTimeout() {},
-    matchMedia(query) {
-      assert.equal(query, "(prefers-reduced-motion: reduce)");
-      return {matches: prefersReducedMotion};
-    }
+    setTimeout() {}
   };
   const picker = new Function(
     "byId",
@@ -1618,13 +1613,11 @@ test("visual card picker adds and removes selected cards in the advice input sta
   assert.equal(elements.addAdvisorCard.textContent, "Set dealer upcard");
   assert.match(elements.advisorCardInstruction.textContent, /Selected area: dealer upcard/);
   assert.equal(targetButtons[0].attributes["aria-label"], "Choose dealer upcard as the card-entry area");
-  assert.deepEqual(elements.advisorCardControls.scrollOptions, {behavior: "smooth", block: "center"});
-  assert.deepEqual(elements.advisorCardRank.focusOptions, {preventScroll: true});
-  prefersReducedMotion = true;
   targetButtons[1].click();
-  assert.equal(elements.advisorCardControls.scrollOptions.behavior, "auto");
-  prefersReducedMotion = false;
+  assert.equal(elements.advisorCardControls.scrollOptions, undefined);
+  assert.equal(elements.advisorCardRank.focusOptions, undefined);
   targetButtons[2].click();
+  assert.equal(elements.advisorCardControls.scrollOptions, undefined);
   assert.equal(elements.advisorCardTarget.value, "hit");
   assert.equal(targetButtons[2].attributes["aria-pressed"], "true");
   suitButtons[1].click();

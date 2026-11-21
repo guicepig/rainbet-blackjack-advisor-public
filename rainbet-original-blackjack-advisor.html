@@ -3843,7 +3843,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         byId("splitHand2Cards").value = advisorCardState.split2.map((card) => card.rank).join(", ");
       }
 
-      function selectAdvisorCardTarget(target, revealCardControls) {
+      function selectAdvisorCardTarget(target) {
         if (target === "split" && !isSplitHandTargetSelectable(1) ||
             target === "split2" && !isSplitHandTargetSelectable(2)) return;
         if (target === "split") activeSplitHand = 1;
@@ -3876,15 +3876,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
           if (zone) byId(zone).classList.toggle("selected-target", selected);
         });
         updateSplitHandProgress();
-        if (revealCardControls) {
-          const controls = byId("advisorCardControls");
-          if (!controls.hidden) {
-            const reduceMotion = Boolean(document.documentElement && document.documentElement.dataset.reduceMotion === "true") ||
-              (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-            controls.scrollIntoView({behavior: reduceMotion ? "auto" : "smooth", block: "center"});
-            byId("advisorCardRank").focus({preventScroll: true});
-          }
-        }
       }
 
       function updateMoveFollowupControls() {
@@ -4136,7 +4127,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         document.querySelectorAll("[data-advisor-target]").forEach((button) => {
           button.addEventListener("click", () => {
             const target = button.dataset.advisorTarget;
-            selectAdvisorCardTarget(target, true);
+            selectAdvisorCardTarget(target);
             playVibrationFeedback();
             if (target === "split" || target === "split2") void decide();
           });
