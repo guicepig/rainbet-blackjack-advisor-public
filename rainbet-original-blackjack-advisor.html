@@ -136,6 +136,27 @@
     .premium-quickstart p { margin: 0; color: var(--muted); font-size: .78rem; }
     .premium-quickstart-actions { display: flex; gap: 7px; }
     .premium-quickstart-actions button { margin: 0; white-space: nowrap; }
+    .advisor-flow {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+      margin: 10px 0 12px; padding: 0; list-style: none;
+    }
+    .advisor-flow li {
+      display: flex; align-items: center; gap: 8px; min-width: 0;
+      min-height: 44px; padding: 7px 9px;
+      border: 1px solid var(--line); border-radius: 11px;
+      background: var(--panel-raised); color: var(--muted);
+      font-size: .72rem; font-weight: 800;
+    }
+    .advisor-flow li span {
+      display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center;
+      border-radius: 50%; background: rgba(114, 224, 171, .12);
+      color: var(--accent); font-size: .68rem;
+    }
+    .advisor-flow li.active {
+      border-color: rgba(114, 224, 171, .48);
+      background: linear-gradient(145deg, rgba(114, 224, 171, .12), rgba(23, 34, 30, .8));
+      color: #ecf9f1;
+    }
     .advisor-session-strip {
       display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
       margin: 12px 0 14px;
@@ -156,9 +177,11 @@
     }
     .header-balance span, .header-balance small { color: var(--muted); font-size: .68rem; }
     .header-balance strong { color: #fff; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+    .header-account-controls { display: grid; justify-items: end; gap: 4px; min-width: 0; }
     .header-actions-row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
     .header-actions-row button { min-height: 38px; margin: 0; padding: 8px 11px; font-size: .8rem; }
     #googleHistoryHeaderAccount { max-width: 190px; overflow: hidden; color: #c5d0ca; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+    #googleHistoryHeaderStatus { max-width: 420px; margin: 0; font-size: .72rem; text-align: right; }
     .settings-dialog {
       width: min(620px, calc(100vw - 28px)); max-height: min(88vh, 820px); overflow: auto;
       padding: clamp(18px, 4vw, 28px); border: 1px solid #3b5747; border-radius: 18px;
@@ -799,12 +822,17 @@
       .header-balance strong { font-size: .87rem; }
       .header-actions-row { gap: 6px; }
       .header-actions-row button { min-height: 34px; padding: 6px 9px; font-size: .74rem; }
+      .header-account-controls { justify-items: stretch; }
+      #googleHistoryHeaderStatus { max-width: 100%; text-align: left; }
       #googleHistoryHeaderAccount { max-width: 120px; font-size: .7rem; }
       .quick-nav { top: 0; margin: 6px 0 8px; padding: 4px; border-radius: 12px; }
       .quick-nav button { min-height: 34px; padding: 6px 10px; font-size: .76rem; }
       .quick-nav-more summary { min-height: 34px; padding: 6px 10px; font-size: .76rem; }
       .panel { margin-top: 8px; padding: 14px; }
       .panel h2 { margin-bottom: 8px; }
+      .advisor-flow { gap: 5px; }
+      .advisor-flow li { min-height: 40px; gap: 5px; padding: 6px; font-size: .64rem; }
+      .advisor-flow li span { width: 22px; height: 22px; }
       .advisor-live-advice {
         position: static; grid-template-columns: minmax(0, 1fr);
         gap: 10px; margin: 7px 0 9px; padding: 8px 10px; border-radius: 11px;
@@ -1556,41 +1584,45 @@
           <strong id="manualBalanceDisplay">0.00 fake credits</strong>
           <small>Manual · device only</small>
         </div>
-        <div class="header-actions-row">
-          <button type="button" id="googleHistorySignIn" disabled>Sign in with Google</button>
-          <span id="googleHistoryHeaderAccount" hidden></span>
-          <button type="button" class="secondary" id="openSettings" aria-haspopup="dialog" aria-controls="settingsDialog">⚙ Settings</button>
+        <div class="header-account-controls">
+          <div class="header-actions-row">
+            <button type="button" id="googleHistorySignIn" disabled>Sign in with Google</button>
+            <button type="button" class="secondary" id="googleHistorySignUp" disabled>Sign up with Google</button>
+            <span id="googleHistoryHeaderAccount" hidden></span>
+            <button type="button" class="secondary" id="openSettings" aria-haspopup="dialog" aria-controls="settingsDialog">⚙ Settings</button>
+          </div>
+          <p id="googleHistoryHeaderStatus" class="fine" role="status" aria-live="polite" hidden></p>
         </div>
       </div>
     </header>
     <nav class="quick-nav" aria-label="Advisor features">
       <button type="button" data-feature-target="advisor" aria-pressed="true">Advisor</button>
-      <button type="button" data-feature-target="history" aria-pressed="false">History</button>
-      <button type="button" data-feature-target="stats" aria-pressed="false">Stats</button>
+      <button type="button" data-feature-target="history" aria-pressed="false">Hand history</button>
+      <button type="button" data-feature-target="practice" aria-pressed="false">Practice</button>
       <details class="quick-nav-more">
-        <summary>More tools</summary>
+        <summary>Tools</summary>
         <div class="quick-nav-more-menu">
-          <button type="button" data-feature-target="helper" aria-pressed="false">AI helper</button>
+          <button type="button" data-feature-target="stats" aria-pressed="false">Statistics</button>
+          <button type="button" data-feature-target="helper" aria-pressed="false">Assistant</button>
           <button type="button" data-feature-target="simulator" aria-pressed="false">Simulator</button>
-          <button type="button" data-feature-target="strategy" aria-pressed="false">Strategy</button>
-          <button type="button" data-feature-target="practice" aria-pressed="false">Practice</button>
+          <button type="button" data-feature-target="strategy" aria-pressed="false">Strategy chart</button>
           <button type="button" data-feature-target="risk" aria-pressed="false">Exposure</button>
           <button type="button" data-feature-target="session-guard" aria-pressed="false">Session limits</button>
-          <button type="button" data-feature-target="sequence" aria-pressed="false">Verifier</button>
-          <button type="button" data-feature-target="limits" aria-pressed="false">Important limits</button>
-          <button type="button" data-feature-target="keno" aria-pressed="false">Keno odds</button>
-          <button type="button" data-feature-target="mines" aria-pressed="false">Mines odds</button>
+          <button type="button" data-feature-target="sequence" aria-pressed="false">Card verifier</button>
+          <button type="button" data-feature-target="limits" aria-pressed="false">Risk limits</button>
+          <button type="button" data-feature-target="keno" aria-pressed="false">Keno calculator</button>
+          <button type="button" data-feature-target="mines" aria-pressed="false">Mines calculator</button>
         </div>
       </details>
       <button type="button" class="command-palette-trigger" id="openCommandPalette" aria-haspopup="dialog" aria-controls="commandPalette">
-        <span>Jump to a tool</span><kbd aria-hidden="true">Ctrl K</kbd>
+        <span>Search tools</span><kbd aria-hidden="true">Ctrl K</kbd>
       </button>
-      <button type="button" id="toggleHelperChat" aria-controls="helperDock" aria-expanded="false" aria-label="Open AI helper chat">Ask AI</button>
+      <button type="button" id="toggleHelperChat" aria-controls="helperDock" aria-expanded="false" aria-label="Open AI assistant">Ask assistant</button>
     </nav>
 
     <section class="panel" data-feature-panel="advisor" aria-labelledby="hand-title">
-      <h2 id="hand-title">Blackjack advisor</h2>
-      <p class="fine advisor-steps">Add the dealer upcard and your two starting cards to get advice. After a move, enter any new cards. Try an example hand first if you like.</p>
+      <h2 id="hand-title">Blackjack decision</h2>
+      <p class="fine advisor-steps">Enter the visible cards, review the recommendation, then record the move you chose.</p>
       <section class="premium-quickstart" id="premiumQuickstart" aria-label="Quick start">
         <span class="premium-quickstart-badge" aria-hidden="true">3</span>
         <div>
@@ -1602,6 +1634,11 @@
           <button type="button" class="secondary" id="dismissPremiumQuickstart">Dismiss</button>
         </div>
       </section>
+      <ol class="advisor-flow" aria-label="Advisor workflow">
+        <li id="advisorFlowStep1" class="active"><span>1</span> Enter cards</li>
+        <li id="advisorFlowStep2"><span>2</span> Review advice</li>
+        <li id="advisorFlowStep3"><span>3</span> Record move</li>
+      </ol>
       <section class="advisor-live-advice" aria-label="Current strategy recommendation" aria-live="polite">
         <div class="advisor-decision-metrics" aria-label="Primary advisor decisions">
           <div class="advisor-decision-metric move-metric">
@@ -2437,8 +2474,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
           <section class="settings-section helper-setup">
             <h3 id="cloud-history-title">Google account and history sync</h3>
             <p class="fine">Your account can restore synced hand history across devices, keep a private display name, and show your membership status. After sign-in, this browser's history is merged automatically and future history changes sync to your account. Membership access is checked separately; signing in alone does not grant paid access. Synced records can include cards, actions, outcomes, wager amounts, and net results. Do not enter Rainbet passwords or other account credentials here.</p>
+            <p class="fine">New accounts are created when you continue with Google for the first time. Existing Google accounts can sign in; no separate website password is needed.</p>
             <p id="googleHistoryAccount" class="fine" aria-live="polite"></p>
             <button type="button" id="googleHistorySettingsSignIn" hidden disabled>Sign in with Google</button>
+            <button type="button" class="secondary" id="googleHistorySettingsSignUp" hidden disabled>Sign up with Google</button>
             <label class="settings-username-field" for="profileNameInput">Private username / display name
               <input id="profileNameInput" type="text" maxlength="20" pattern="[A-Za-z0-9_-]{3,20}" autocomplete="nickname" autocapitalize="none" spellcheck="false" aria-describedby="profileNameHelp profileNameStatus" placeholder="3–20 letters, numbers, _ or -">
             </label>
@@ -2470,7 +2509,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
               <summary>One-time Firebase setup</summary>
               <ol class="fine">
                 <li>Create a Firebase project and register a web app. Put its public web-app config in <code>rainbet-firebase-config.js</code>; Firebase web config is public, but never put service-account keys or other secrets in this file.</li>
-                <li>Enable Google and Anonymous under Firebase Authentication sign-in providers, create a Cloud Firestore database, add the exact production website domain under Authentication → Settings → Authorized domains, and publish this site's Firestore rules. Google sign-in uses a redirect on mobile and when a browser blocks its popup.</li>
+                <li>Enable Google and Anonymous under Firebase Authentication sign-in providers, create a Cloud Firestore database, add the exact production website domain under Authentication → Settings → Authorized domains, add <code>https://rainbet-advisor.onrender.com</code> to the Google OAuth client's authorized JavaScript origins, and add <code>https://rainbet-advisor.onrender.com/__/auth/handler</code> to its authorized redirect URIs. The server transparently proxies Firebase's <code>/__/auth/</code> helpers; a 302 redirect is not supported. Publish this site's Firestore rules. Google sign-in uses a redirect on mobile and when a browser blocks its popup.</li>
                 <li>Publish this app's <code>firestore.rules</code> in the Firestore Rules console before allowing sign-in. These rules restrict each account to its own history and private username.</li>
                 <li>For shared statistics, set <code>FIREBASE_SERVICE_ACCOUNT_JSON</code> as a private server environment variable. Never put a service-account key in this app or its public Firebase config.</li>
                 <li>For local testing, open the advisor through <code>http://127.0.0.1:4173</code>. A public site must be served over HTTPS and have its production domain authorized in Firebase.</li>
@@ -2506,8 +2545,8 @@ node .\rainbet-gemini-server.cjs</code></pre>
           <section class="settings-section">
             <h3 id="interfaceSettingsTitle">Interface customization</h3>
             <p class="fine">Choose which navigation shortcuts are visible. This preference is saved only in this browser.</p>
-            <label class="settings-choice"><input id="showAiButton" type="checkbox" checked> Show Ask AI button in navigation</label>
-            <p class="fine">Uncheck this option to remove the Ask AI shortcut. The AI helper remains available from More tools.</p>
+            <label class="settings-choice"><input id="showAiButton" type="checkbox" checked> Show Ask assistant button in navigation</label>
+            <p class="fine">Uncheck this option to remove the assistant shortcut. The assistant remains available from Tools.</p>
             <p id="interfaceStatus" class="fine settings-settings-status" aria-live="polite">Interface preferences are saved in this browser.</p>
           </section>
         </section>
@@ -5463,6 +5502,13 @@ node .\rainbet-gemini-server.cjs</code></pre>
           ". DOUBLE probabilities assume one additional card and a doubled exposure. This is a rule-based estimate with replacement, not a learned guarantee; it does not track prior hands or model splits, surrender, side bets, or unpublished table rules.";
       }
 
+      function setAdvisorFlowStep(step) {
+        for (let index = 1; index <= 3; index++) {
+          const item = byId("advisorFlowStep" + index);
+          if (item) item.classList.toggle("active", index === step);
+        }
+      }
+
       async function decide(recordConsultation) {
         if (strategyRequestState.controller) strategyRequestState.controller.abort();
         const controller = new AbortController();
@@ -5472,6 +5518,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
         try {
           const inputPrompt = getAdvisorInputPrompt(byId("playerCards").value, byId("dealer").value);
           if (inputPrompt) {
+            setAdvisorFlowStep(1);
             setSplitInputAvailability(false);
             byId("action").textContent = "CHECK INPUT";
             if (byId("copyAdviceSummary")) byId("copyAdviceSummary").hidden = true;
@@ -5543,6 +5590,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
             afterSplit
           };
           byId("action").textContent = "CHECKING";
+          setAdvisorFlowStep(2);
           if (byId("copyAdviceSummary")) byId("copyAdviceSummary").hidden = true;
           byId("reason").textContent = "Getting the recommendation from the private advisor server.";
           byId("decisionAnalysis").textContent = "";
@@ -5571,6 +5619,7 @@ node .\rainbet-gemini-server.cjs</code></pre>
           if (result.hand.total <= 21) {
             byId("moveActionHeading").textContent = "What did you choose to do?";
             byId("moveActionPanel").scrollIntoView({behavior: "smooth", block: "nearest"});
+            setAdvisorFlowStep(3);
           }
           if (result.hand.total > 21) byId("moveFollowup").hidden = true;
           byId("insurance").textContent = dealer.rank === "A"
@@ -5644,6 +5693,12 @@ node .\rainbet-gemini-server.cjs</code></pre>
           const errorMessage = requestStarted
             ? advisorRequestErrorMessage(error, window.location.protocol)
             : error.message;
+          if (/Sign in with Google/i.test(errorMessage)) {
+            byId("action").textContent = "SIGN IN";
+            if (byId("primaryMove")) byId("primaryMove").textContent = "SIGN IN";
+            byId("handSummary").textContent = "Google sign-in required";
+            setAdvisorFlowStep(1);
+          }
           byId("reason").textContent = errorMessage;
           byId("advisorStatus").textContent = errorMessage;
           byId("advisorStatus").classList.add("error");
@@ -6514,6 +6569,12 @@ node .\rainbet-gemini-server.cjs</code></pre>
         const status = byId("googleHistoryStatus");
         status.textContent = message;
         status.classList.toggle("error", Boolean(isError));
+        const headerStatus = byId("googleHistoryHeaderStatus");
+        if (headerStatus) {
+          headerStatus.textContent = message;
+          headerStatus.classList.toggle("error", Boolean(isError));
+          headerStatus.hidden = !isError;
+        }
       }
 
       async function refreshMembershipStatus() {
@@ -6680,8 +6741,13 @@ node .\rainbet-gemini-server.cjs</code></pre>
 
       function updateCloudHistoryControls() {
         const signedIn = Boolean(cloudHistoryUser);
-        const signInButtons = [byId("googleHistorySignIn"), byId("googleHistorySettingsSignIn")];
-        signInButtons.forEach((button) => {
+        const accountButtons = [
+          byId("googleHistorySignIn"),
+          byId("googleHistorySignUp"),
+          byId("googleHistorySettingsSignIn"),
+          byId("googleHistorySettingsSignUp")
+        ];
+        accountButtons.forEach((button) => {
           button.hidden = signedIn;
           button.disabled = !cloudHistoryClient || cloudHistorySyncing || cloudHistorySigningIn;
         });
@@ -6861,7 +6927,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
           setCloudHistoryStatus("Opening Google sign-in…", false);
           try {
             const result = await cloudHistoryClient.signIn();
-            if (result && result.isNewUser) trackHistoryAccountCreated();
+            if (result && result.isNewUser) {
+              trackHistoryAccountCreated();
+              setCloudHistoryStatus("Your Google account was created. Syncing hand history…", false);
+            }
           } catch (error) {
             setCloudHistoryStatus("Google sign-in failed: " + getGoogleSignInErrorMessage(error), true);
           } finally {
@@ -6870,7 +6939,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
           }
         };
         byId("googleHistorySignIn").addEventListener("click", () => signInWithGoogle());
+        byId("googleHistorySignUp").addEventListener("click", () => signInWithGoogle());
         byId("googleHistorySettingsSignIn").addEventListener("click", () => signInWithGoogle());
+        byId("googleHistorySettingsSignUp").addEventListener("click", () => signInWithGoogle());
         byId("saveProfileName").addEventListener("click", () => void savePrivateProfileName(false));
         byId("clearProfileName").addEventListener("click", () => void savePrivateProfileName(true));
         byId("googleHistorySync").addEventListener("click", () => syncCloudHistory());
@@ -7760,6 +7831,55 @@ node .\rainbet-gemini-server.cjs</code></pre>
         }, 100);
       }
 
+      function renderCurrentHandOutcome(result) {
+        const win = byId("currentHandWinChance");
+        const push = byId("currentHandPushChance");
+        const loss = byId("currentHandLossChance");
+        const note = byId("currentHandOutcomeNote");
+        if (!win || !push || !loss || !note) return;
+        const primaryWin = byId("primaryWinChance");
+        const primaryPush = byId("primaryPushChance");
+        const primaryLoss = byId("primaryLossChance");
+        if (!result || result.hand.total > 21) {
+          win.textContent = "0.0%";
+          push.textContent = "0.0%";
+          loss.textContent = "100.0%";
+          if (primaryWin) primaryWin.textContent = "0.0%";
+          if (primaryPush) primaryPush.textContent = "0.0%";
+          if (primaryLoss) primaryLoss.textContent = "100.0%";
+          note.textContent = "The hand is already bust, so loss is certain under the entered cards.";
+          return;
+        }
+        if (!result.analysis || !result.action) {
+          win.textContent = push.textContent = loss.textContent = "—";
+          if (primaryWin) primaryWin.textContent = "—";
+          if (primaryPush) primaryPush.textContent = "—";
+          if (primaryLoss) primaryLoss.textContent = "—";
+          note.textContent = "Outcome chances are unavailable for this split or dealer upcard.";
+          return;
+        }
+        const actionKey = String(result.analysis.bestAction || result.action).toLowerCase();
+        const outcomes = result.analysis.outcomeProbabilities &&
+          result.analysis.outcomeProbabilities[actionKey];
+        if (!outcomes || !["win", "push", "loss"].every((key) =>
+          Number.isFinite(outcomes[key]) && outcomes[key] >= 0 && outcomes[key] <= 1)) {
+          win.textContent = push.textContent = loss.textContent = "—";
+          if (primaryWin) primaryWin.textContent = "—";
+          if (primaryPush) primaryPush.textContent = "—";
+          if (primaryLoss) primaryLoss.textContent = "—";
+          note.textContent = "Outcome chances are unavailable for this hand.";
+          return;
+        }
+        win.textContent = (outcomes.win * 100).toFixed(1) + "%";
+        push.textContent = (outcomes.push * 100).toFixed(1) + "%";
+        loss.textContent = (outcomes.loss * 100).toFixed(1) + "%";
+        if (primaryWin) primaryWin.textContent = win.textContent;
+        if (primaryPush) primaryPush.textContent = push.textContent;
+        if (primaryLoss) primaryLoss.textContent = loss.textContent;
+        note.textContent = "Estimated for " + actionKey.toUpperCase() +
+          " using 8-deck S17 rank probabilities. Approximation, not a Rainbet future outcome.";
+      }
+
       function refreshHistory() {
         if (historySearchTimer !== null) {
           window.clearTimeout(historySearchTimer);
@@ -7775,60 +7895,6 @@ node .\rainbet-gemini-server.cjs</code></pre>
               byId("handResultEntry").hidden = false;
               byId("handResultMessage").textContent = "Add the action and outcome for the saved hand: " +
                 pendingConsultation.cards.join(", ") + " vs. dealer " + pendingConsultation.dealer + ".";
-            }
-
-            function renderPrimaryMove(move) {
-              const primary = byId("primaryMove");
-              if (primary) primary.textContent = move || "—";
-            }
-
-            function renderCurrentHandOutcome(result) {
-              const win = byId("currentHandWinChance");
-              const push = byId("currentHandPushChance");
-              const loss = byId("currentHandLossChance");
-              const note = byId("currentHandOutcomeNote");
-              if (!win || !push || !loss || !note) return;
-              const primaryWin = byId("primaryWinChance");
-              const primaryPush = byId("primaryPushChance");
-              const primaryLoss = byId("primaryLossChance");
-              if (!result || result.hand.total > 21) {
-                win.textContent = "0.0%";
-                push.textContent = "0.0%";
-                loss.textContent = "100.0%";
-                if (primaryWin) primaryWin.textContent = "0.0%";
-                if (primaryPush) primaryPush.textContent = "0.0%";
-                if (primaryLoss) primaryLoss.textContent = "100.0%";
-                note.textContent = "The hand is already bust, so loss is certain under the entered cards.";
-                return;
-              }
-              if (!result.analysis || !result.action) {
-                win.textContent = push.textContent = loss.textContent = "—";
-                if (primaryWin) primaryWin.textContent = "—";
-                if (primaryPush) primaryPush.textContent = "—";
-                if (primaryLoss) primaryLoss.textContent = "—";
-                note.textContent = "Outcome chances are unavailable for this split or dealer upcard.";
-                return;
-              }
-              const actionKey = String(result.analysis.bestAction || result.action).toLowerCase();
-              const outcomes = result.analysis.outcomeProbabilities &&
-                result.analysis.outcomeProbabilities[actionKey];
-              if (!outcomes || !["win", "push", "loss"].every((key) =>
-                Number.isFinite(outcomes[key]) && outcomes[key] >= 0 && outcomes[key] <= 1)) {
-                win.textContent = push.textContent = loss.textContent = "—";
-                if (primaryWin) primaryWin.textContent = "—";
-                if (primaryPush) primaryPush.textContent = "—";
-                if (primaryLoss) primaryLoss.textContent = "—";
-                note.textContent = "Outcome chances are unavailable for this hand.";
-                return;
-              }
-              win.textContent = (outcomes.win * 100).toFixed(1) + "%";
-              push.textContent = (outcomes.push * 100).toFixed(1) + "%";
-              loss.textContent = (outcomes.loss * 100).toFixed(1) + "%";
-              if (primaryWin) primaryWin.textContent = win.textContent;
-              if (primaryPush) primaryPush.textContent = push.textContent;
-              if (primaryLoss) primaryLoss.textContent = loss.textContent;
-              note.textContent = "Estimated for " + actionKey.toUpperCase() +
-                " using 8-deck S17 rank probabilities. Approximation, not a Rainbet future outcome.";
             }
           }
           const counts = entries.reduce((result, entry) => {

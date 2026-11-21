@@ -1,6 +1,7 @@
 "use strict";
 
 const http = require("node:http");
+const https = require("node:https");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const {actionForContext, parseRank} = require("./rainbet-strategy.cjs");
@@ -58,6 +59,65 @@ function sendJson(response, status, value) {
     "X-Content-Type-Options": "nosniff"
   });
   response.end(JSON.stringify(value));
+}
+
+function proxyFirebaseAuthRequest(request, response, requestPath, requestImpl) {
+  const headers = {...request.headers};
+  const connectionHeaders = typeof headers.connection === "string"
+    ? headers.connection.split(",").map((header) => header.trim().toLowerCase())
+    : [];
+  [
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    ...connectionHeaders
+  ].forEach((header) => delete headers[header]);
+  delete headers.host;
+
+  const upstreamRequest = requestImpl({
+    hostname: "rainbet-advisor-history.firebaseapp.com",
+    method: request.method,
+    path: requestPath,
+    headers
+  }, (upstreamResponse) => {
+    const responseHeaders = {...upstreamResponse.headers};
+    const responseConnectionHeaders = typeof responseHeaders.connection === "string"
+      ? responseHeaders.connection.split(",").map((header) => header.trim().toLowerCase())
+      : [];
+    [
+      "connection",
+      "keep-alive",
+      "proxy-authenticate",
+      "proxy-authorization",
+      "te",
+      "trailer",
+      "transfer-encoding",
+      "upgrade",
+      ...responseConnectionHeaders
+    ].forEach((header) => delete responseHeaders[header]);
+    response.removeHeader("X-Frame-Options");
+    response.writeHead(upstreamResponse.statusCode || 502, responseHeaders);
+    upstreamResponse.pipe(response);
+  });
+  upstreamRequest.on("error", (error) => {
+    process.stderr.write("Firebase auth proxy failed: " +
+      (error && typeof error.code === "string" ? error.code : "upstream-error") + "\n");
+    if (response.headersSent) {
+      response.destroy(error);
+      return;
+    }
+    response.writeHead(502, {
+      "Cache-Control": "no-store",
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Firebase sign-in helper is unavailable. Try again shortly.");
+  });
+  request.pipe(upstreamRequest);
 }
 
 function isAllowedAppOrigin(request) {
@@ -384,6 +444,7 @@ function createServer(options) {
   const apiKey = settings.apiKey === undefined ? process.env.GEMINI_API_KEY : settings.apiKey;
   const model = settings.model || process.env.GEMINI_MODEL || defaultModel;
   const fetchImpl = settings.fetchImpl || globalThis.fetch;
+  const firebaseAuthRequestImpl = settings.firebaseAuthRequestImpl || https.request;
   const billingStore = Object.prototype.hasOwnProperty.call(settings, "billingStore")
     ? settings.billingStore
     : configuredBillingStore(settings);
@@ -991,16 +1052,19 @@ function createServer(options) {
       return;
     }
 
-    if ((pathname === "/__/auth/handler" || pathname.startsWith("/__/auth/")) &&
-        (request.method === "GET" || request.method === "HEAD")) {
-      const target = "https://rainbet-advisor-history.firebaseapp.com" +
-        pathname + (requestUrl.search || "");
-      response.writeHead(302, {
-        "Cache-Control": "no-store",
-        "Location": target,
-        "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'"
-      });
-      response.end(request.method === "HEAD" ? undefined : "");
+    if (pathname === "/__/auth" || pathname.startsWith("/__/auth/")) {
+      if (!["GET", "HEAD", "POST"].includes(request.method)) {
+        request.resume();
+        response.setHeader("Allow", "GET, HEAD, POST");
+        sendJson(response, 405, {error: "Use GET, HEAD, or POST for Firebase sign-in helpers."});
+        return;
+      }
+      proxyFirebaseAuthRequest(
+        request,
+        response,
+        pathname + (requestUrl.search || ""),
+        firebaseAuthRequestImpl
+      );
       return;
     }
 

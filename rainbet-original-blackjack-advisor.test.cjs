@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
+const {PassThrough, Readable} = require("node:stream");
 const {createServer: createGeminiServer, extractAnswer} = require("./rainbet-gemini-server.cjs");
 const {actionFor, actionForContext, expectedValueActionAnalysis} = require("./rainbet-strategy.cjs");
 const {
@@ -429,15 +430,15 @@ test("settings navigation and private usernames enforce their supported states",
   assert.equal(isValidPrivateUsername("name@example"), false);
 });
 
-test("Ask AI shortcut is visible by default and supports a saved hidden preference", () => {
+test("AI assistant shortcut is visible by default and supports a saved hidden preference", () => {
   assert.equal(readAiButtonVisibilityPreference(null), true);
   assert.equal(readAiButtonVisibilityPreference("shown"), true);
   assert.equal(readAiButtonVisibilityPreference("hidden"), false);
   assert.throws(() => readAiButtonVisibilityPreference("invalid"), /unexpected value/);
-  assert.match(html, /id="toggleHelperChat"[^>]*>Ask AI/);
+  assert.match(html, /id="toggleHelperChat"[^>]*>Ask assistant/);
   assert.match(html, /id="showAiButton" type="checkbox" checked/);
   assert.match(html, /id="settingsInterface" data-settings-panel="interface"/);
-  assert.match(html, /Uncheck this option to remove the Ask AI shortcut/);
+  assert.match(html, /Uncheck this option to remove the assistant shortcut/);
   assert.match(html, /rainbet-advisor-ai-button-visibility-v1/);
 });
 
@@ -810,6 +811,36 @@ test("Google sign-in errors explain Firebase setup and user-actionable failures"
   assert.equal(getGoogleSignInErrorMessage({}), "Check the Firebase Google provider and authorized-domain settings, then try again.");
 });
 
+test("Google sign-in failures are visible beside the header account buttons", () => {
+  const statusStart = mainScript.indexOf("      function setCloudHistoryStatus(");
+  const statusEnd = mainScript.indexOf("      async function refreshMembershipStatus()", statusStart);
+  assert.ok(statusStart >= 0 && statusEnd > statusStart, "cloud auth status updater should exist");
+  const values = {
+    googleHistoryStatus: {
+      textContent: "",
+      classList: {toggle(name, active) { this[name] = active; }}
+    },
+    googleHistoryHeaderStatus: {
+      textContent: "",
+      hidden: true,
+      classList: {toggle(name, active) { this[name] = active; }}
+    }
+  };
+  const setCloudHistoryStatus = new Function(
+    "byId",
+    mainScript.slice(statusStart, statusEnd) + "return setCloudHistoryStatus;"
+  )((id) => values[id]);
+
+  setCloudHistoryStatus("Google authentication failed.", true);
+  assert.equal(values.googleHistoryHeaderStatus.textContent, "Google authentication failed.");
+  assert.equal(values.googleHistoryHeaderStatus.hidden, false);
+  assert.equal(values.googleHistoryHeaderStatus.classList.error, true);
+
+  setCloudHistoryStatus("Firebase is ready.", false);
+  assert.equal(values.googleHistoryHeaderStatus.hidden, true);
+  assert.equal(values.googleHistoryHeaderStatus.classList.error, false);
+});
+
 test("Google sign-in supports mobile redirect and recovers popup-blocked desktop sign-in", () => {
   const moduleSource = fs.readFileSync(path.join(__dirname, "rainbet-cloud-history.mjs"), "utf8");
   assert.match(moduleSource, /function shouldUseGoogleSignInRedirect\(\)/);
@@ -818,6 +849,100 @@ test("Google sign-in supports mobile redirect and recovers popup-blocked desktop
   assert.match(moduleSource, /Allow popups for this site/);
   assert.match(moduleSource, /authSdk\.getRedirectResult\(auth\)/);
   assert.match(moduleSource, /status: "auth-error"/);
+});
+
+test("website offers Google account creation alongside sign-in", () => {
+  assert.match(html, /id="googleHistorySignUp"[^>]*>Sign up with Google<\/button>/);
+  assert.match(html, /id="googleHistorySettingsSignUp"[^>]*>Sign up with Google<\/button>/);
+  assert.match(html, /New accounts are created when you continue with Google for the first time/);
+  assert.match(html, /id="googleHistoryHeaderStatus"[^>]*aria-live="polite"/);
+
+  const controlsStart = mainScript.indexOf("      function updateCloudHistoryControls()");
+  const controlsEnd = mainScript.indexOf("      function queueCloudHistorySave(", controlsStart);
+  assert.ok(controlsStart >= 0 && controlsEnd > controlsStart, "account controls updater should exist");
+  assert.match(mainScript.slice(controlsStart, controlsEnd), /googleHistorySignUp/);
+  assert.match(mainScript.slice(controlsStart, controlsEnd), /googleHistorySettingsSignUp/);
+
+  const uiStart = mainScript.indexOf("      function initializeCloudHistoryUi()");
+  const uiEnd = mainScript.indexOf("      function toggleHistory()", uiStart);
+  assert.ok(uiStart >= 0 && uiEnd > uiStart, "cloud-history UI initializer should exist");
+  const uiSource = mainScript.slice(uiStart, uiEnd);
+  assert.match(uiSource, /googleHistorySignUp"\)\.addEventListener\("click", \(\) => signInWithGoogle\(\)\)/);
+  assert.match(uiSource, /googleHistorySettingsSignUp"\)\.addEventListener\("click", \(\) => signInWithGoogle\(\)\)/);
+  assert.match(uiSource, /result\.isNewUser[\s\S]*Your Google account was created/);
+});
+
+test("Google create-account button creates new users and still signs in existing users", async () => {
+  const uiStart = mainScript.indexOf("      function initializeCloudHistoryUi()");
+  const uiEnd = mainScript.indexOf("      function toggleHistory()", uiStart);
+  assert.ok(uiStart >= 0 && uiEnd > uiStart, "cloud-history UI initializer should exist");
+
+  const elements = new Map();
+  const byId = (id) => {
+    if (!elements.has(id)) {
+      elements.set(id, {
+        listeners: {},
+        addEventListener(type, listener) {
+          this.listeners[type] = listener;
+        }
+      });
+    }
+    return elements.get(id);
+  };
+  const statuses = [];
+  let createdAccountEvents = 0;
+  const signInResults = [{isNewUser: true}, {isNewUser: false}];
+  let signInCalls = 0;
+  const initializeCloudHistoryUi = new Function(
+    "byId",
+    "window",
+    "document",
+    "handleCloudHistoryEvent",
+    "cloudHistoryClient",
+    "updateCloudHistoryControls",
+    "setCloudHistoryStatus",
+    "trackHistoryAccountCreated",
+    "getGoogleSignInErrorMessage",
+    "savePrivateProfileName",
+    "syncCloudHistory",
+    "startTrialMembershipCheckout",
+    "startMembershipCheckout",
+    "cancelUpcomingMembership",
+    "openMembershipPortal",
+    "let cloudHistorySigningIn = false;\n" +
+      mainScript.slice(uiStart, uiEnd) +
+      "return initializeCloudHistoryUi;"
+  )(
+    byId,
+    {addEventListener() {}, location: {protocol: "https:"}},
+    {
+      createElement() {
+        return {addEventListener() {}};
+      },
+      head: {appendChild() {}}
+    },
+    () => {},
+    {signIn: async () => signInResults[signInCalls++]},
+    () => {},
+    (message) => statuses.push(message),
+    () => { createdAccountEvents++; },
+    (error) => error.message,
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => {}
+  );
+  initializeCloudHistoryUi();
+
+  await byId("googleHistorySignUp").listeners.click();
+  await byId("googleHistorySignIn").listeners.click();
+
+  assert.equal(signInCalls, 2);
+  assert.equal(createdAccountEvents, 1, "only a newly created Google account is tracked as a signup");
+  assert.ok(statuses.includes("Your Google account was created. Syncing hand history…"));
+  assert.ok(statuses.includes("Opening Google sign-in…"));
 });
 
 test("membership status refresh updates account controls after the server response", async () => {
@@ -958,6 +1083,18 @@ test("move follow-up panel stays in page flow to avoid covering the card table",
   assert.doesNotMatch(html, /\.move-action-panel\s*\{[^}]*position:\s*sticky/);
   assert.match(html, /What did you do\?/);
   assert.match(html, /What did you choose to do\?/);
+});
+
+test("navigation and advisor workflow use clear professional labels", () => {
+  assert.match(html, /<h2 id="hand-title">Blackjack decision<\/h2>/);
+  assert.match(html, /<span>1<\/span> Enter cards/);
+  assert.match(html, /<span>2<\/span> Review advice/);
+  assert.match(html, /<span>3<\/span> Record move/);
+  assert.match(html, />Hand history<\/button>/);
+  assert.match(html, />Practice<\/button>/);
+  assert.match(html, /<summary>Tools<\/summary>/);
+  assert.match(html, />Search tools<\/span>/);
+  assert.match(html, />Ask assistant<\/button>/);
 });
 
 test("advisor starts empty and offers a clearly labeled example hand", () => {
@@ -2311,6 +2448,42 @@ test("recommendation panel exposes visible win push and loss percentages", () =>
   assert.match(html, /Estimated for " \+ actionKey\.toUpperCase\(\)/);
 });
 
+test("advisor can render current-hand outcome percentages", () => {
+  const renderStart = mainScript.indexOf("      function renderCurrentHandOutcome(");
+  const refreshStart = mainScript.indexOf("      function refreshHistory()");
+  const saveResultStart = mainScript.indexOf("      function saveHandResult()", refreshStart);
+  assert.ok(renderStart >= 0 && refreshStart > renderStart, "outcome renderer should be outside refreshHistory");
+  assert.ok(saveResultStart > refreshStart, "history refresh function should exist");
+  assert.doesNotMatch(mainScript.slice(refreshStart, saveResultStart), /function renderCurrentHandOutcome/,
+    "outcome renderer should not be scoped inside refreshHistory");
+  const ids = [
+    "currentHandWinChance", "currentHandPushChance", "currentHandLossChance",
+    "currentHandOutcomeNote", "primaryWinChance", "primaryPushChance", "primaryLossChance"
+  ];
+  const elements = Object.fromEntries(ids.map((id) => [id, {textContent: "—"}]));
+  const renderCurrentHandOutcome = new Function(
+    "byId",
+    mainScript.slice(renderStart, refreshStart) + "return renderCurrentHandOutcome;"
+  )((id) => elements[id] || null);
+
+  renderCurrentHandOutcome({
+    hand: {total: 18},
+    action: "HIT",
+    analysis: {
+      bestAction: "stand",
+      outcomeProbabilities: {stand: {win: 0.45, push: 0.1, loss: 0.45}}
+    }
+  });
+
+  assert.equal(elements.currentHandWinChance.textContent, "45.0%");
+  assert.equal(elements.currentHandPushChance.textContent, "10.0%");
+  assert.equal(elements.currentHandLossChance.textContent, "45.0%");
+  assert.equal(elements.primaryWinChance.textContent, "45.0%");
+  assert.equal(elements.primaryPushChance.textContent, "10.0%");
+  assert.equal(elements.primaryLossChance.textContent, "45.0%");
+  assert.match(elements.currentHandOutcomeNote.textContent, /Estimated for STAND/);
+});
+
 test("current-hand outcome distributions normalize for all supported starting hands and dealer upcards", () => {
   const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
   for (const first of ranks) {
@@ -3307,6 +3480,7 @@ test("using the advisor automatically records the server recommendation without 
   const savedEntries = [];
   let recordCalls = 0;
   let refreshCalls = 0;
+  const flowSteps = [];
   const splitAvailability = [];
   const localStorage = {
     setItem(key, value) {
@@ -3330,6 +3504,7 @@ test("using the advisor automatically records the server recommendation without 
     "renderSuggestedWager",
     "renderCurrentHandOutcome",
     "advisorRequestErrorMessage",
+    "setAdvisorFlowStep",
     mainScript.slice(decideStart, recordConsultationStart) + "return decide;"
   )(
     (id) => elements[id],
@@ -3361,10 +3536,12 @@ test("using the advisor automatically records the server recommendation without 
     getAdvisorInputPrompt,
     () => {},
     () => {},
-    (error) => error && typeof error.message === "string" ? error.message : "The advisor request failed."
+    (error) => error && typeof error.message === "string" ? error.message : "The advisor request failed.",
+    (step) => { flowSteps.push(step); }
   );
 
   await decide(true);
+  assert.equal(flowSteps[flowSteps.length - 1], 3, "a completed recommendation advances to recording the move");
   assert.equal(recordCalls, 1);
   assert.equal(refreshCalls, 1);
   assert.equal(elements.handResultEntry.hidden, false);
@@ -4575,6 +4752,65 @@ test("private strategy endpoint validates same-origin requests and does not serv
     headers: {Origin: origin}
   });
   assert.equal(wrongMethod.status, 405);
+});
+
+test("Firebase auth helpers proxy requests and responses without redirecting or blocking the helper iframe", async (testContext) => {
+  const calls = [];
+  const server = createGeminiServer({
+    apiKey: "",
+    firebaseAuthRequestImpl: (options, callback) => {
+      const request = new PassThrough();
+      const chunks = [];
+      request.on("data", (chunk) => chunks.push(chunk));
+      request.on("finish", () => {
+        calls.push({
+          options,
+          body: Buffer.concat(chunks).toString("utf8")
+        });
+        const response = Readable.from(["firebase-helper"]);
+        response.statusCode = 200;
+        response.headers = {"Content-Type": "text/plain; charset=utf-8"};
+        callback(response);
+      });
+      return request;
+    }
+  });
+  const origin = await listenForTest(testContext, server);
+
+  const iframe = await fetch(origin + "/__/auth/iframe?mode=test");
+  assert.equal(iframe.status, 200);
+  assert.equal(await iframe.text(), "firebase-helper");
+  assert.equal(iframe.headers.get("location"), null);
+  assert.equal(iframe.headers.get("x-frame-options"), null);
+
+  const callback = await fetch(origin + "/__/auth/handler?mode=test", {
+    method: "POST",
+    headers: {"Content-Type": "text/plain"},
+    body: "callback-body"
+  });
+  assert.equal(callback.status, 200);
+  assert.equal(await callback.text(), "firebase-helper");
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls.map(({options}) => ({
+    hostname: options.hostname,
+    method: options.method,
+    path: options.path,
+    hostHeader: options.headers.host
+  })), [
+    {
+      hostname: "rainbet-advisor-history.firebaseapp.com",
+      method: "GET",
+      path: "/__/auth/iframe?mode=test",
+      hostHeader: undefined
+    },
+    {
+      hostname: "rainbet-advisor-history.firebaseapp.com",
+      method: "POST",
+      path: "/__/auth/handler?mode=test",
+      hostHeader: undefined
+    }
+  ]);
+  assert.equal(calls[1].body, "callback-body");
 });
 
 test("Gemini server serves the app and sends the question with fixed, public reference notes", async (testContext) => {
