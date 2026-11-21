@@ -810,10 +810,12 @@ test("Google sign-in errors explain Firebase setup and user-actionable failures"
   assert.equal(getGoogleSignInErrorMessage({}), "Check the Firebase Google provider and authorized-domain settings, then try again.");
 });
 
-test("Google sign-in uses Firebase redirect for reliable account recovery", () => {
+test("Google sign-in supports mobile redirect and recovers popup-blocked desktop sign-in", () => {
   const moduleSource = fs.readFileSync(path.join(__dirname, "rainbet-cloud-history.mjs"), "utf8");
+  assert.match(moduleSource, /function shouldUseGoogleSignInRedirect\(\)/);
   assert.match(moduleSource, /authSdk\.signInWithRedirect\(auth, provider\)/);
-  assert.doesNotMatch(moduleSource, /signInWithPopup/);
+  assert.match(moduleSource, /authSdk\.signInWithPopup\(auth, provider\)/);
+  assert.match(moduleSource, /error\.code !== "auth\/popup-blocked"/);
   assert.match(moduleSource, /authSdk\.getRedirectResult\(auth\)/);
   assert.match(moduleSource, /status: "auth-error"/);
 });
