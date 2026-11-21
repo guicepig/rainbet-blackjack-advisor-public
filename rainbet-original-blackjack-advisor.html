@@ -651,6 +651,19 @@
     .move-outcome-chances div { display: grid; justify-items: center; gap: 1px; }
     .move-outcome-chances span { color: var(--muted); font-size: .62rem; font-weight: 750; text-transform: uppercase; }
     .move-outcome-chances strong { color: var(--text); font-size: .85rem; font-variant-numeric: tabular-nums; }
+    .move-suggested-action { margin: 0 0 6px; color: #d7eddb; font-size: .74rem; font-weight: 800; }
+    .move-suggested-action strong { color: #a8f0bd; font-size: .92rem; }
+    .action-outcome-comparison { margin: 0 0 7px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 10px; background: rgba(15, 25, 35, .72); }
+    .action-outcome-comparison[hidden] { display: none; }
+    .action-outcome-comparison table { width: 100%; border-collapse: collapse; font-size: .68rem; font-variant-numeric: tabular-nums; }
+    .action-outcome-comparison caption { padding: 0 0 3px; color: var(--muted); font-size: .62rem; font-weight: 800; text-align: left; }
+    .action-outcome-comparison th, .action-outcome-comparison td { padding: 3px 5px; border-bottom: 1px solid rgba(165, 187, 205, .14); text-align: right; white-space: nowrap; }
+    .action-outcome-comparison th:first-child, .action-outcome-comparison td:first-child { text-align: left; }
+    .action-outcome-comparison tbody tr:last-child td { border-bottom: 0; }
+    .action-outcome-comparison th { color: #b7c8d3; font-size: .59rem; text-transform: uppercase; }
+    .action-outcome-comparison .recommended-action { color: #baf2c7; background: rgba(66, 123, 62, .2); font-weight: 850; }
+    .action-outcome-comparison .conditional-action { color: #e6d6a4; background: rgba(112, 91, 40, .16); }
+    .action-outcome-comparison-note { margin: 4px 0 0; color: var(--muted); font-size: .61rem; line-height: 1.35; }
     .move-action-buttons { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
     .move-action-buttons button {
       min-height: 44px; margin: 0; padding: 8px 10px; border: 1px solid #45664e;
@@ -889,6 +902,12 @@
       .move-outcome-estimate { align-items: stretch; flex-direction: column; gap: 5px; margin-bottom: 7px; padding: 6px 7px; }
       .move-outcome-chances { gap: 3px; }
       .move-outcome-chances strong { font-size: .82rem; }
+      .move-suggested-action { margin-bottom: 4px; font-size: .69rem; }
+      .move-suggested-action strong { font-size: .82rem; }
+      .action-outcome-comparison { margin-bottom: 6px; padding: 4px 5px; }
+      .action-outcome-comparison table { font-size: .62rem; }
+      .action-outcome-comparison th, .action-outcome-comparison td { padding: 2px 3px; }
+      .action-outcome-comparison-note { font-size: .57rem; }
       .move-action-buttons { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
       .move-action-buttons button { min-height: 36px; padding: 5px 2px; font-size: .7rem; }
       .move-followup-response { min-height: 0; margin-top: 3px !important; }
@@ -1821,8 +1840,9 @@
           </div>
         </div>
       </div>
-      <section class="move-action-panel" id="moveActionPanel" aria-label="Record your move" hidden>
+      <section class="move-action-panel" id="moveActionPanel" aria-label="Suggested move and record your action" hidden>
         <p class="move-action-heading visually-hidden" id="moveActionHeading">What did you do?</p>
+        <p class="move-suggested-action">Suggested move: <strong id="moveSuggestedAction">—</strong></p>
         <div class="move-outcome-estimate" role="group" aria-label="Estimated outcome chances for the recommended move">
           <span class="visually-hidden">Recommended move outcome</span>
           <div class="move-outcome-chances">
@@ -1830,6 +1850,16 @@
             <div><span>Push</span><strong id="movePushChance">—</strong></div>
             <div><span>Loss</span><strong id="moveLossChance">—</strong></div>
           </div>
+        </div>
+        <div class="action-outcome-comparison" id="actionOutcomeComparison" hidden aria-live="polite">
+          <table>
+            <caption>Estimated outcome by move</caption>
+            <thead>
+              <tr><th scope="col">Move</th><th scope="col">Win</th><th scope="col">Push</th><th scope="col">Loss</th></tr>
+            </thead>
+            <tbody id="actionOutcomeRows"></tbody>
+          </table>
+          <p class="action-outcome-comparison-note" id="actionOutcomeComparisonNote"></p>
         </div>
         <div class="move-action-buttons" id="moveActionButtons">
           <button type="button" data-followup-move="HIT" aria-pressed="false">Hit</button>
@@ -2037,10 +2067,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
 
     <section class="panel" data-feature-panel="strategy" aria-labelledby="strategy-title" hidden>
       <h2 id="strategy-title">Strategy overview</h2>
-      <p class="fine">The exact decision implementation runs on the advisor server and is not included in this public page. For eligible non-split hands against dealer 2–9, it compares hit, stand, and available double actions using eight-deck S17 rank probabilities with a replacement approximation. Pair splits and hands against 10 or Ace use the published-rule basic-strategy baseline because some live-table rules are not published. It is not a guarantee or prediction; actual strategy may differ if live rules differ.</p>
+      <p class="fine">The exact decision implementation runs on the advisor server and is not included in this public page. For eligible non-split hands against dealer 2–9, it compares hit, stand, and available double actions using eight-deck S17 rank probabilities with a replacement approximation. Pair decisions and hands against dealer 10 or Ace retain the published-rule basic-strategy baseline because some live-table rules are not published. Separate action-outcome estimates include dealer 10/A by assuming the dealer checks for blackjack before player actions; those percentages include the dealer-blackjack chance as a loss. They are assumptions, not guarantees or predictions, and actual strategy may differ if live rules differ.</p>
       <p class="fine">Card ranks, dealer upcard, and selected rule toggles are sent to the app server for each move recommendation. Hand history, outcome, wager, and fictional-credit balance run locally for the pre-deal sizing estimate and are not sent for move calculations.</p>
       <p class="warning">Moving the implementation to a server hides its source from ordinary page inspection, but repeated requests can still reveal recommendation behavior. It is not a guarantee against reverse engineering.</p>
-      <p class="fine">The advisor does not track cards across hands, make real-money wager recommendations, or place bets. For supported non-split hands against dealer 2–9, its 8-deck S17 replacement model estimates win/push/loss chances for stand, hit, and double; DOUBLE assumes one more card and twice the exposure. Pair splits and other unsupported hands do not have this analytical outcome model. The recent-20 history model compares chronological out-of-sample multiclass Brier scores against an overall baseline and exposes an approximate paired lower bound. It is a separate pre-deal input: Auto may use it for a fictional amount only with at least 30 predictions and a positive lower bound; otherwise the baseline or recorded-return evidence remains. The stake is independent of the current cards and future action. First-action W/P/L rates provide context, while split entries remain round-level results. History probabilities assume even-money W/L for sizing, and exact recorded net returns can cap the amount. This experimental gate is not proof of a durable advantage. The current-hand model still has an 8-deck S17 replacement approximation and may not match live rules. Balance, session-loss, and up-to-4× exposure caps apply. Confirm current table rules and terms before relying on any reference.</p>
+      <p class="fine">The advisor does not track cards across hands, make real-money wager recommendations, or place bets. Its current-hand model estimates win/push/loss chances for each available hit, stand, or double action with an 8-deck S17 replacement model. For dealer 10/A, it assumes a dealer check for blackjack before player actions and includes that chance as a loss. For eligible pairs against dealer 2–9, Split outcomes are per split hand, not the combined two-hand result; they use modeled follow-up play, omit resplitting, and assume no double after splitting when DAS is unknown. These percentages describe outcomes, not the chance an action is correct. DOUBLE uses one more card and twice the exposure. The recent-20 history model compares chronological out-of-sample multiclass Brier scores against an overall baseline and exposes an approximate paired lower bound. It is a separate pre-deal input: Auto may use it for a fictional amount only with at least 30 predictions and a positive lower bound; otherwise the baseline or recorded-return evidence remains. The stake is independent of the current cards and future action. First-action W/P/L rates provide context, while split history entries remain round-level results. History probabilities assume even-money W/L for sizing, and exact recorded net returns can cap the amount. This experimental gate is not proof of a durable advantage. The current-hand model still uses replacement assumptions and may not match live rules. Balance, session-loss, and up-to-4× exposure caps apply. Confirm current table rules and terms before relying on any reference.</p>
       <p class="fine">Method references: <a href="https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm" target="_blank" rel="noopener noreferrer">NIST guidance on Wilson proportion intervals</a>, <a href="https://wizardofodds.com/games/blackjack/expected-values/" target="_blank" rel="noopener noreferrer">Wizard of Odds blackjack expected values</a>, <a href="https://wizardofodds.com/games/blackjack/effect-of-removal/" target="_blank" rel="noopener noreferrer">card-removal effects</a>, and <a href="https://scikit-learn.org/stable/modules/model_evaluation.html#brier-score-loss" target="_blank" rel="noopener noreferrer">proper scoring rules and Brier-score evaluation</a>. Kelly sizing assumes a known return distribution and positive expected value; this practice model's approximate validation does not establish a durable edge.</p>
       <p class="fine">Sources: <a href="https://rainbet.com/casino/originals/blackjack" target="_blank" rel="noopener noreferrer">Rainbet Blackjack rules</a> and <a href="https://rainbet.com/terms" target="_blank" rel="noopener noreferrer">Rainbet terms</a>.</p>
     </section>
@@ -3137,10 +3167,10 @@ node .\rainbet-gemini-server.cjs</code></pre>
           return "This page does not connect to your Rainbet account. Offline answers stay on this device. If you click “Ask Gemini,” Google receives the question you typed plus fixed public Rainbet and app-reference notes; saved hand history, current hand details, chat transcript, and account data are not attached. Advisor history, practice progress, and session data stay in this browser. Review Google’s API terms before sending anything private.";
         }
         if (mentions("what variables", "what factors", "decision factors", "how is advice chosen", "how does the advisor decide", "what patterns")) {
-          return "For eligible non-split hands against dealer 2–9, the server compares hit, stand, and available double by expected value using an 8-deck S17 rank-probability model with a replacement approximation. Pair splits and dealer 10/A use the published-rule basic-strategy baseline because some live-table rules are not published. It does not track earlier hands or use outcomes to predict future cards.";
+          return "For eligible non-split hands against dealer 2–9, the server compares hit, stand, and available double by expected value using an 8-deck S17 replacement model. Recommendations for pairs and dealer 10/A use the published-rule basic-strategy baseline. Separate move-outcome percentages cover dealer 10/A by assuming a dealer blackjack check before actions, and Split percentages for eligible pairs are per split hand, not the full round. These are assumptions, not a chance that a move is correct. The advisor does not track earlier hands or use prior outcomes to predict future cards.";
         }
         if (mentions("strategy", "advisor", "recommendation", "hit", "stand", "double", "split", "basic strategy", "rules", "rule set")) {
-          return "The advisor uses an 8-deck S17 expected-value model with a replacement approximation for eligible hands against dealer 2–9, with the basic-strategy baseline for pairs and dealer 10/A. It applies your double/split/DAS settings where modeled, and does not track earlier hands or predict outcomes. Some table rules remain unpublished, so advice may differ if the actual rules differ.";
+          return "The advisor uses an 8-deck S17 expected-value model with a replacement approximation for eligible non-split hands against dealer 2–9, with the basic-strategy baseline for pairs and dealer 10/A. Its separate action comparison shows estimated win/push/loss chances; dealer 10/A estimates assume a dealer blackjack check before actions, and Split estimates are per split hand. These are not probabilities that an action is correct. Some table rules remain unpublished, so advice may differ if actual rules differ.";
         }
         if (mentions("insight", "pattern", "help", "ai")) {
           return "I can explain this app’s advisor, rule assumptions, current hand preview, simulator, practice, history, exposure, session guard, and verifier. Try asking “explain my current hand,” “what does DAS mean,” or “how does history affect practice?” I only use built-in knowledge; I cannot browse or answer every general question.";
@@ -5445,26 +5475,37 @@ node .\rainbet-gemini-server.cjs</code></pre>
           throw error;
         }
         const actions = ["HIT", "STAND", "DOUBLE", "SPLIT"];
+        const validDistribution = (probabilities) => Boolean(probabilities &&
+          ["win", "push", "loss"].every((key) =>
+            Number.isFinite(probabilities[key]) && probabilities[key] >= 0 && probabilities[key] <= 1) &&
+          Math.abs(probabilities.win + probabilities.push + probabilities.loss - 1) <= 1e-6);
+        const validAnalysis = (analysis, expectedBestAction) => Boolean(
+          analysis && typeof analysis === "object" && !Array.isArray(analysis) &&
+          ["HIT", "STAND", "DOUBLE"].includes(analysis.bestAction) &&
+          (!expectedBestAction || analysis.bestAction === expectedBestAction) &&
+          analysis.values && typeof analysis.values === "object" && !Array.isArray(analysis.values) &&
+          Object.entries(analysis.values).length > 0 &&
+          Object.entries(analysis.values).every(([action, value]) =>
+            ["hit", "stand", "double"].includes(action) && Number.isFinite(value)) &&
+          analysis.outcomeProbabilities && typeof analysis.outcomeProbabilities === "object" &&
+          Object.entries(analysis.values).every(([action]) =>
+            validDistribution(analysis.outcomeProbabilities[action])) &&
+          (analysis.splitOutcomeProbabilities === undefined ||
+            validDistribution(analysis.splitOutcomeProbabilities)) &&
+          (analysis.dealerNaturalProbability === undefined ||
+            Number.isFinite(analysis.dealerNaturalProbability) &&
+              analysis.dealerNaturalProbability >= 0 && analysis.dealerNaturalProbability <= 1) &&
+          typeof analysis.shoe === "string" && typeof analysis.unit === "string" &&
+          (analysis.assumption === undefined || typeof analysis.assumption === "string")
+        );
         if (!payload || !actions.includes(payload.action) ||
             payload.alternativeAction !== null && !actions.includes(payload.alternativeAction) ||
             !payload.hand || !Number.isInteger(payload.hand.total) ||
             typeof payload.hand.soft !== "boolean" || typeof payload.explanation !== "string" ||
             payload.analysis !== undefined && payload.analysis !== null &&
-              (payload.analysis.bestAction !== payload.action ||
-                !payload.analysis.values || typeof payload.analysis.values !== "object" ||
-                !["HIT", "STAND", "DOUBLE"].includes(payload.analysis.bestAction) ||
-                !Object.entries(payload.analysis.values).every(([action, value]) =>
-                  ["hit", "stand", "double"].includes(action) && Number.isFinite(value)) ||
-                !payload.analysis.outcomeProbabilities ||
-                !Object.entries(payload.analysis.values).every(([action]) => {
-                  const probabilities = payload.analysis.outcomeProbabilities[action];
-                  return probabilities && ["win", "push", "loss"].every((result) =>
-                    Number.isFinite(probabilities[result]) && probabilities[result] >= 0 &&
-                    probabilities[result] <= 1) &&
-                    Math.abs(probabilities.win + probabilities.push + probabilities.loss - 1) <= 1e-6;
-                }) ||
-                typeof payload.analysis.shoe !== "string" ||
-                typeof payload.analysis.unit !== "string")) {
+              !validAnalysis(payload.analysis, payload.action) ||
+            payload.comparisonAnalysis !== undefined && payload.comparisonAnalysis !== null &&
+              !validAnalysis(payload.comparisonAnalysis, null)) {
           throw new Error("The advisor server returned an unexpected response.");
         }
         return payload;
@@ -5481,9 +5522,15 @@ node .\rainbet-gemini-server.cjs</code></pre>
             return action.toUpperCase() + " " + (value >= 0 ? "+" : "") + value.toFixed(4) + chance;
           })
           .join(" · ");
-        return "Current-hand model (W/P/L = win/push/loss; expected net per initial wager; " +
+        const split = analysis.splitOutcomeProbabilities
+          ? " · SPLIT per hand (W/P/L " + ["win", "push", "loss"]
+            .map((result) => (analysis.splitOutcomeProbabilities[result] * 100).toFixed(1) + "%").join("/") + ")"
+          : "";
+        return "Current-hand estimate (W/P/L = win/push/loss; expected net per initial wager; " +
           analysis.shoe + "): " + values +
-          ". DOUBLE probabilities assume one additional card and a doubled exposure. This is a rule-based estimate with replacement, not a learned guarantee; it does not track prior hands or model splits, surrender, side bets, or unpublished table rules.";
+          split +
+          ". DOUBLE assumes one more card and twice the exposure. Split W/P/L is per split hand, not the combined two-hand result. " +
+          (analysis.assumption || "These are rule-based estimates with replacement, not guarantees; they do not track prior hands or model surrender, side bets, or unpublished table rules.");
       }
 
       async function decide(recordConsultation) {
@@ -5611,11 +5658,13 @@ node .\rainbet-gemini-server.cjs</code></pre>
               ? result.action + " / " + result.alternativeAction
               : result.action;
             byId("reason").textContent = result.explanation;
-            byId("decisionAnalysis").textContent = result.analysis
-              ? formatDecisionAnalysis(result.analysis)
+            const comparisonAnalysis = result.analysis || result.comparisonAnalysis;
+            byId("decisionAnalysis").textContent = comparisonAnalysis
+              ? formatDecisionAnalysis(comparisonAnalysis)
               : "Current-hand win/push/loss probabilities are unavailable for this split or dealer upcard. The displayed action uses the published-rule basic-strategy baseline; separate wager sizing can still use validated saved history.";
           }
           renderCurrentHandOutcome(result);
+          renderActionOutcomeComparison(result, canSplitPair);
           const type = result.hand.soft ? "Soft " : "Hard ";
           const drawSummary = afterSplit
             ? " (split hand " + splitHandIndex + ")"
@@ -7835,16 +7884,19 @@ node .\rainbet-gemini-server.cjs</code></pre>
           note.textContent = "The hand is already bust, so loss is certain under the entered cards.";
           return;
         }
-        if (!result.analysis || !result.action) {
+        const analysis = result && (result.analysis || result.comparisonAnalysis);
+        if (!analysis || !result.action) {
           setDisplayedChances(["—", "—", "—"]);
           note.textContent = "Outcome chances are unavailable for this split or dealer upcard.";
           return;
         }
-        const actionKey = String(result.analysis.bestAction || result.action).toLowerCase();
-        const outcomes = result.analysis.outcomeProbabilities &&
-          result.analysis.outcomeProbabilities[actionKey];
-        if (!outcomes || !["win", "push", "loss"].every((key) =>
-          Number.isFinite(outcomes[key]) && outcomes[key] >= 0 && outcomes[key] <= 1)) {
+        const actionKey = String(result.action === "SPLIT"
+          ? "SPLIT"
+          : result.analysis ? result.analysis.bestAction : result.action).toLowerCase();
+        const outcomes = actionKey === "split"
+          ? analysis.splitOutcomeProbabilities
+          : analysis.outcomeProbabilities && analysis.outcomeProbabilities[actionKey];
+        if (!validOutcomeDistribution(outcomes)) {
           setDisplayedChances(["—", "—", "—"]);
           note.textContent = "Outcome chances are unavailable for this hand.";
           return;
@@ -7854,8 +7906,95 @@ node .\rainbet-gemini-server.cjs</code></pre>
           (outcomes.push * 100).toFixed(1) + "%",
           (outcomes.loss * 100).toFixed(1) + "%"
         ]);
-        note.textContent = "Estimated for " + actionKey.toUpperCase() +
-          " using 8-deck S17 rank probabilities. Approximation, not a Rainbet future outcome.";
+        note.textContent = actionKey === "split"
+          ? "Estimated per split hand, not the combined two-hand result, using an 8-deck S17 replacement model."
+          : (analysis.assumption ? analysis.assumption + " " : "") +
+            "Estimated for " + actionKey.toUpperCase() + " with an 8-deck S17 replacement model.";
+      }
+
+      function validOutcomeDistribution(outcomes) {
+        return Boolean(outcomes && ["win", "push", "loss"].every((key) =>
+          Number.isFinite(outcomes[key]) && outcomes[key] >= 0 && outcomes[key] <= 1) &&
+          Math.abs(outcomes.win + outcomes.push + outcomes.loss - 1) <= 1e-6);
+      }
+
+      function renderActionOutcomeComparison(result, splitAvailable) {
+        const panel = byId("actionOutcomeComparison");
+        const rows = byId("actionOutcomeRows");
+        const note = byId("actionOutcomeComparisonNote");
+        const suggested = byId("moveSuggestedAction");
+        if (!panel || !rows || !note || !suggested) return;
+        suggested.textContent = result && result.action
+          ? result.action + (result.alternativeAction ? " / " + result.alternativeAction : "")
+          : "—";
+        while (rows.firstChild) rows.removeChild(rows.firstChild);
+        const analysis = result && (result.analysis || result.comparisonAnalysis);
+        const actions = ["HIT", "STAND", "DOUBLE"];
+        const availableActions = analysis && analysis.outcomeProbabilities
+          ? actions.filter((action) => analysis.outcomeProbabilities[action.toLowerCase()])
+          : [];
+        availableActions.forEach((action) => {
+          const outcomes = analysis.outcomeProbabilities[action.toLowerCase()];
+          if (!validOutcomeDistribution(outcomes)) return;
+          const row = document.createElement("tr");
+          const isSuggested = action === result.action;
+          const isAlternative = action === result.alternativeAction;
+          if (isSuggested) row.classList.add("recommended-action");
+          else if (isAlternative) row.classList.add("conditional-action");
+          const label = document.createElement("th");
+          label.scope = "row";
+          label.textContent = action +
+            (action === "DOUBLE" ? " (2× stake)" : "") +
+            (isSuggested ? " · suggested" : isAlternative ? " · conditional" : "");
+          row.appendChild(label);
+          ["win", "push", "loss"].forEach((kind) => {
+            const cell = document.createElement("td");
+            cell.textContent = (outcomes[kind] * 100).toFixed(1) + "%";
+            row.appendChild(cell);
+          });
+          rows.appendChild(row);
+        });
+        if (splitAvailable) {
+          const row = document.createElement("tr");
+          const isSuggested = result && result.action === "SPLIT";
+          const isAlternative = result && result.alternativeAction === "SPLIT";
+          if (isSuggested) row.classList.add("recommended-action");
+          else if (isAlternative) row.classList.add("conditional-action");
+          const label = document.createElement("th");
+          label.scope = "row";
+          label.textContent = "SPLIT (per hand)" +
+            (isSuggested ? " · suggested" : isAlternative ? " · conditional" : "");
+          row.appendChild(label);
+          const outcomes = analysis && analysis.splitOutcomeProbabilities;
+          ["win", "push", "loss"].forEach((kind) => {
+            const cell = document.createElement("td");
+            cell.textContent = validOutcomeDistribution(outcomes)
+              ? (outcomes[kind] * 100).toFixed(1) + "%"
+              : "—";
+            row.appendChild(cell);
+          });
+          rows.appendChild(row);
+        }
+        panel.hidden = rows.childElementCount === 0;
+        note.textContent = !analysis
+          ? "No current-hand outcome model is available for this hand and dealer upcard."
+          : [
+            "8-deck S17 replacement estimates: win/push/loss chances, not the chance a move is correct.",
+            analysis.dealerNaturalProbability
+              ? "Dealer-blackjack chance included (" +
+                (analysis.dealerNaturalProbability * 100).toFixed(1) + "%; assumes a check before player actions)."
+              : "",
+              availableActions.includes("DOUBLE")
+                ? analysis.dealerNaturalProbability
+                  ? "After a dealer check, double risks 2× the initial wager; a dealer natural loses the initial wager only."
+                  : "Double risks 2× the initial wager."
+                : "",
+            splitAvailable
+                ? validOutcomeDistribution(analysis.splitOutcomeProbabilities)
+                  ? "Hit and Split assume modeled follow-up play; Split shows each hand separately, not the combined result. Unknown DAS assumes no double after splitting, and resplitting is not modeled."
+                  : "Split outcome is unavailable for this dealer upcard and rule setup."
+              : ""
+          ].filter(Boolean).join(" ");
       }
 
       function refreshHistory() {

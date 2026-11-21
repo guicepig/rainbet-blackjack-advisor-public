@@ -2025,7 +2025,8 @@ test("offline helper answers site topics and explains the current preview withou
   assert.match(helperReply("What does split mean?"), /separates a pair into two hands/);
   assert.match(helperReply("What does 3:2 mean?"), /1\.5 times the original wager/);
   assert.match(helperReply("Can I count cards?"), /does not count cards/);
-  assert.match(helperReply("What factors does the advisor use?"), /8-deck S17 rank-probability model/);
+  assert.match(helperReply("What factors does the advisor use?"), /8-deck S17 replacement model/);
+  assert.match(helperReply("What factors does the advisor use?"), /dealer blackjack check before actions/);
   assert.match(helperReply("What factors does the advisor use?"), /does not track earlier hands/);
   assert.match(helperReply("I want the advisor to learn based on history of past bets"), /uses saved outcomes for a separate fictional pre-deal stake/);
   assert.match(helperReply("What is the house edge?"), /long-run expected loss/);
@@ -2419,7 +2420,7 @@ test("advisor accepts all three-card rank combinations against every dealer upca
   assert.equal(cases, ranks.length ** 3 * dealerCards.length);
 });
 
-test("8-deck expected-value analysis compares available actions with a replacement approximation", () => {
+test("8-deck outcome analysis compares moves and reports split-hand odds under stated assumptions", () => {
   const soft17 = expectedValueActionAnalysis([card("A"), card(6)], card(3), {
     doubleAllowed: true,
     afterSplit: false
@@ -2438,10 +2439,39 @@ test("8-deck expected-value analysis compares available actions with a replaceme
     2 * (soft17.outcomeProbabilities.double.win - soft17.outcomeProbabilities.double.loss)) < 1e-12,
   "double EV reflects twice the initial wager");
 
-  assert.equal(expectedValueActionAnalysis([card(10), card(6)], card(10), {
+  const dealerTen = expectedValueActionAnalysis([card(10), card(6)], card(10), {
     doubleAllowed: true,
     afterSplit: false
-  }), null);
+  });
+  assert.equal(dealerTen.dealerNaturalProbability, 1 / 13);
+  assert.match(dealerTen.assumption, /checks for blackjack before player actions/);
+  for (const action of ["hit", "stand", "double"]) {
+    const probabilities = dealerTen.outcomeProbabilities[action];
+    assert.ok(probabilities.loss >= dealerTen.dealerNaturalProbability);
+    assert.ok(Math.abs(probabilities.win + probabilities.push + probabilities.loss - 1) < 1e-12);
+  }
+
+  const pair = expectedValueActionAnalysis([card(8), card(8)], card(6), {
+    doubleAllowed: true,
+    splitAllowed: true,
+    dasRule: "unknown",
+    afterSplit: false
+  });
+  assert.ok(pair.splitOutcomeProbabilities);
+  assert.ok(Math.abs(pair.splitOutcomeProbabilities.win +
+    pair.splitOutcomeProbabilities.push + pair.splitOutcomeProbabilities.loss - 1) < 1e-12);
+  assert.equal(actionForContext([card(8), card(8)], card(6), {
+    doubleAllowed: true,
+    splitAllowed: true,
+    dasRule: "unknown",
+    afterSplit: false
+  }).action, "SPLIT");
+  assert.ok(actionForContext([card(8), card(8)], card(6), {
+    doubleAllowed: true,
+    splitAllowed: true,
+    dasRule: "unknown",
+    afterSplit: false
+  }).comparisonAnalysis.splitOutcomeProbabilities);
 });
 
 test("recommendation panel exposes visible win push and loss percentages", () => {
@@ -2459,8 +2489,14 @@ test("recommendation panel exposes visible win push and loss percentages", () =>
   assert.match(html, /id="moveWinChance"/);
   assert.match(html, /id="movePushChance"/);
   assert.match(html, /id="moveLossChance"/);
+  assert.match(html, /id="moveSuggestedAction"/);
+  assert.match(html, /id="actionOutcomeComparison"/);
+  assert.match(html, /id="actionOutcomeRows"/);
+  assert.match(html, /Estimated outcome by move/);
+  assert.match(mainScript, /function renderActionOutcomeComparison\(result, splitAvailable\)/);
+  assert.match(mainScript, /8-deck S17 replacement estimates: win\/push\/loss chances, not the chance a move is correct/);
   assert.match(html, /function renderCurrentHandOutcome\(result\)/);
-  assert.match(html, /Estimated for " \+ actionKey\.toUpperCase\(\)/);
+  assert.match(html, /Split W\/P\/L is per split hand/);
 });
 
 test("advisor can render current-hand outcome percentages", () => {
@@ -2513,11 +2549,62 @@ test("advisor can render current-hand outcome percentages", () => {
   assert.equal(elements.moveLossChance.textContent, "100.0%");
 });
 
-test("current-hand outcome distributions normalize for all supported starting hands and dealer upcards", () => {
+test("move comparison renders action probabilities, the suggestion, and split-hand limits", () => {
+  const rendererStart = mainScript.indexOf("      function validOutcomeDistribution(");
+  const rendererEnd = mainScript.indexOf("      function refreshHistory()", rendererStart);
+  assert.ok(rendererStart >= 0 && rendererEnd > rendererStart, "move comparison renderer should exist");
+  const makeElement = () => ({
+    children: [],
+    classList: {values: [], add(value) { this.values.push(value); }},
+    appendChild(child) { this.children.push(child); },
+    removeChild(child) { this.children.splice(this.children.indexOf(child), 1); },
+    get firstChild() { return this.children[0] || null; },
+    get childElementCount() { return this.children.length; }
+  });
+  const elements = {
+    actionOutcomeComparison: {hidden: true},
+    actionOutcomeRows: makeElement(),
+    actionOutcomeComparisonNote: {textContent: ""},
+    moveSuggestedAction: {textContent: ""}
+  };
+  const render = new Function(
+    "byId",
+    "document",
+    mainScript.slice(rendererStart, rendererEnd) + "return renderActionOutcomeComparison;"
+  )((id) => elements[id] || null, {createElement: makeElement});
+
+  const dealerTenAdvice = actionForContext([card(10), card(6)], card(10), {
+    doubleAllowed: true,
+    splitAllowed: false,
+    dasRule: "unknown",
+    afterSplit: false
+  });
+  render(dealerTenAdvice, false);
+  assert.equal(elements.moveSuggestedAction.textContent, "HIT");
+  assert.equal(elements.actionOutcomeRows.childElementCount, 3);
+  assert.match(elements.actionOutcomeRows.children[0].children[1].textContent, /^\d+\.\d+%$/);
+  assert.match(elements.actionOutcomeComparisonNote.textContent, /Dealer-blackjack chance included/);
+
+  const pairAdvice = actionForContext([card(8), card(8)], card(6), {
+    doubleAllowed: true,
+    splitAllowed: true,
+    dasRule: "unknown",
+    afterSplit: false
+  });
+  render(pairAdvice, true);
+  assert.equal(elements.moveSuggestedAction.textContent, "SPLIT");
+  assert.equal(elements.actionOutcomeRows.childElementCount, 4);
+  assert.match(elements.actionOutcomeRows.children[3].children[0].textContent, /SPLIT \(per hand\)/);
+  assert.ok(elements.actionOutcomeRows.children[3].classList.values.includes("recommended-action"));
+  assert.match(elements.actionOutcomeComparisonNote.textContent, /not the chance a move is correct/);
+  assert.match(elements.actionOutcomeComparisonNote.textContent, /each hand separately/);
+});
+
+test("current-hand outcome distributions normalize across starting hands and all dealer upcards", () => {
   const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
   for (const first of ranks) {
     for (const second of ranks) {
-      for (const dealer of [2, 3, 4, 5, 6, 7, 8, 9]) {
+      for (const dealer of [2, 3, 4, 5, 6, 7, 8, 9, 10, "A"]) {
         const analysis = expectedValueActionAnalysis([card(first), card(second)], card(dealer), {
           doubleAllowed: true,
           afterSplit: false
@@ -2529,7 +2616,8 @@ test("current-hand outcome distributions normalize for all supported starting ha
         }
         if (analysis.values.double !== undefined) {
           assert.ok(Math.abs(analysis.values.double -
-            2 * (analysis.outcomeProbabilities.double.win - analysis.outcomeProbabilities.double.loss)) < 1e-12);
+            2 * (analysis.outcomeProbabilities.double.win - analysis.outcomeProbabilities.double.loss) -
+            (analysis.dealerNaturalProbability || 0)) < 1e-12);
         }
       }
     }
@@ -3328,7 +3416,7 @@ test("wager suggestion stays prominent and compact with a history-based estimate
   assert.match(mainScript, /Auto uses a validated recent-20 W\/P\/L pattern/);
   assert.match(mainScript, /amount is chosen before cards/);
   assert.match(mainScript, /renderOutcomePatternEstimate\(recentHands, outcomes\)/);
-  assert.match(mainScript, /Current-hand model \(W\/P\/L = win\/push\/loss/);
+  assert.match(mainScript, /Current-hand estimate \(W\/P\/L = win\/push\/loss/);
   assert.match(mainScript, /handOutcomeQuarterKellyFraction/);
   assert.match(mainScript, /Auto uses conservative empirical return evidence/);
   assert.match(mainScript, /negative-edge-no-wager/);
@@ -3535,6 +3623,7 @@ test("using the advisor automatically records the server recommendation without 
     "getAdvisorInputPrompt",
     "renderSuggestedWager",
     "renderCurrentHandOutcome",
+    "renderActionOutcomeComparison",
     "advisorRequestErrorMessage",
     mainScript.slice(decideStart, recordConsultationStart) + "return decide;"
   )(
@@ -3568,6 +3657,7 @@ test("using the advisor automatically records the server recommendation without 
     () => { refreshCalls++; },
     () => "finite-shoe EV",
     getAdvisorInputPrompt,
+    () => {},
     () => {},
     () => {},
     (error) => error && typeof error.message === "string" ? error.message : "The advisor request failed."
@@ -4741,13 +4831,11 @@ test("private strategy endpoint validates same-origin requests and does not serv
   });
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "no-store");
-  assert.deepEqual(await response.json(), {
-    action: "HIT",
-    alternativeAction: null,
-    explanation: "Basic strategy hits this hand against the dealer upcard. Factors considered: published 8-deck, stand-on-soft-17 baseline; hard total 16; 2 player cards; dealer upcard 10; double available; not a pair.",
-    hand: {total: 16, soft: false},
-    analysis: null
-  });
+  const baselinePayload = await response.json();
+  assert.equal(baselinePayload.action, "HIT");
+  assert.equal(baselinePayload.analysis, null);
+  assert.equal(baselinePayload.comparisonAnalysis.dealerNaturalProbability, 1 / 13);
+  assert.ok(baselinePayload.comparisonAnalysis.outcomeProbabilities.hit);
 
   const evResponse = await fetch(origin + "/api/advice", {
     method: "POST",
@@ -4763,6 +4851,20 @@ test("private strategy endpoint validates same-origin requests and does not serv
   assert.equal(evPayload.action, "DOUBLE");
   assert.equal(evPayload.analysis.bestAction, "DOUBLE");
   assert.ok(evPayload.analysis.values.double > evPayload.analysis.values.hit);
+
+  const splitResponse = await fetch(origin + "/api/advice", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", Origin: origin},
+    body: JSON.stringify({
+      cards: ["8", "8"],
+      dealer: "6",
+      options: {doubleAllowed: true, splitAllowed: true, dasRule: "unknown", afterSplit: false}
+    })
+  });
+  const splitPayload = await splitResponse.json();
+  assert.equal(splitResponse.status, 200);
+  assert.equal(splitPayload.action, "SPLIT");
+  assert.ok(splitPayload.comparisonAnalysis.splitOutcomeProbabilities);
 
   const splitAceResponse = await fetch(origin + "/api/advice", {
     method: "POST",

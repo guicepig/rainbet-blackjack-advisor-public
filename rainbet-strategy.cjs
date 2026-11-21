@@ -152,7 +152,7 @@ function actionForSplitHand(cards, dealer, options) {
 }
 
 function expectedValueActionAnalysis(cards, dealer, options) {
-  if (dealer.value < 2 || dealer.value > 9 || options.afterSplit) return null;
+  if (dealer.value < 2 || dealer.value > 11 || options.afterSplit) return null;
 
   const rankProbabilities = [1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 1 / 13, 4 / 13];
   const stateForCards = (hand) => hand.reduce((state, card) => ({
@@ -195,7 +195,18 @@ function expectedValueActionAnalysis(cards, dealer, options) {
     hardTotal: dealer.rank === "A" ? 1 : dealer.value,
     aces: dealer.rank === "A" ? 1 : 0
   };
-  const dealerDistribution = dealerOutcomes(dealerStart);
+  const dealerNaturalIndex = dealer.rank === "A" ? 9 : dealer.value === 10 ? 0 : -1;
+  const dealerNaturalProbability = dealerNaturalIndex < 0 ? 0 : rankProbabilities[dealerNaturalIndex];
+  const dealerDistribution = dealerNaturalIndex < 0
+    ? dealerOutcomes(dealerStart)
+    : rankProbabilities.reduce((distribution, probability, index) => {
+      if (index === dealerNaturalIndex) return distribution;
+      const outcomes = dealerOutcomes(addCard(dealerStart, index));
+      outcomes.forEach((value, outcome) => {
+        distribution[outcome] += probability / (1 - dealerNaturalProbability) * value;
+      });
+      return distribution;
+    }, [0, 0, 0, 0, 0, 0]);
   function standOutcomes(state) {
     const playerTotal = bestTotal(state);
     if (playerTotal > 21) return {win: 0, push: 0, loss: 1};
@@ -255,41 +266,101 @@ function expectedValueActionAnalysis(cards, dealer, options) {
       : hitOutcomes(state, optimalOutcomes);
   }
 
+  function hitValue(state) {
+    let value = 0;
+    for (let index = 0; index < rankProbabilities.length; index++) {
+      value += rankProbabilities[index] * optimalValue(addCard(state, index));
+    }
+    return value;
+  }
+
+  function doubleOutcomes(state) {
+    const outcomes = {win: 0, push: 0, loss: 0};
+    for (let index = 0; index < rankProbabilities.length; index++) {
+      const probability = rankProbabilities[index];
+      const nextState = addCard(state, index);
+      const nextOutcomes = bestTotal(nextState) > 21
+        ? {win: 0, push: 0, loss: 1}
+        : standOutcomes(nextState);
+      for (const result of ["win", "push", "loss"]) {
+        outcomes[result] += probability * nextOutcomes[result];
+      }
+    }
+    return outcomes;
+  }
+
+  function doubleValue(state) {
+    let value = 0;
+    for (let index = 0; index < rankProbabilities.length; index++) {
+      const nextState = addCard(state, index);
+      value += rankProbabilities[index] *
+        (bestTotal(nextState) > 21 ? -2 : 2 * standValue(nextState));
+    }
+    return value;
+  }
+
+  function includeDealerNatural(outcomes, natural = false) {
+    if (natural) {
+      return {win: 1 - dealerNaturalProbability, push: dealerNaturalProbability, loss: 0};
+    }
+    return {
+      win: outcomes.win * (1 - dealerNaturalProbability),
+      push: outcomes.push * (1 - dealerNaturalProbability),
+      loss: dealerNaturalProbability + outcomes.loss * (1 - dealerNaturalProbability)
+    };
+  }
+
   const state = stateForCards(cards);
   const total = bestTotal(state);
   const natural = cards.length === 2 && state.aces === 1 && state.hardTotal === 11;
-  const values = {stand: standValue(state, natural)};
+  const standOutcomesForHand = natural
+    ? {win: 1, push: 0, loss: 0}
+    : standOutcomes(state);
+  const values = {
+    stand: natural
+      ? standValue(state, true) * (1 - dealerNaturalProbability)
+      : standValue(state) * (1 - dealerNaturalProbability) - dealerNaturalProbability
+  };
   const outcomeProbabilities = {
-    stand: natural ? {win: 1, push: 0, loss: 0} : standOutcomes(state)
+    stand: includeDealerNatural(standOutcomesForHand, natural)
   };
   if (!natural && total < 21) {
-    let hitValue = 0;
-    let doubleValue = 0;
-    for (let index = 0; index < rankProbabilities.length; index++) {
-      const nextState = addCard(state, index);
-      const probability = rankProbabilities[index];
-      const nextTotal = bestTotal(nextState);
-      hitValue += probability * optimalValue(nextState);
-      if (options.doubleAllowed && cards.length === 2) {
-        doubleValue += probability * (nextTotal > 21 ? -2 : 2 * standValue(nextState));
-      }
-    }
-    values.hit = hitValue;
-    outcomeProbabilities.hit = hitOutcomes(state, optimalOutcomes);
+    const hitOutcomesForHand = hitOutcomes(state, optimalOutcomes);
+    values.hit = hitValue(state) * (1 - dealerNaturalProbability) - dealerNaturalProbability;
+    outcomeProbabilities.hit = includeDealerNatural(hitOutcomesForHand);
     if (options.doubleAllowed && cards.length === 2) {
-      values.double = doubleValue;
-      const doubleOutcomes = {win: 0, push: 0, loss: 0};
-      for (let index = 0; index < rankProbabilities.length; index++) {
-        const probability = rankProbabilities[index];
-        const nextState = addCard(state, index);
-        const nextOutcomes = bestTotal(nextState) > 21
-          ? {win: 0, push: 0, loss: 1}
-          : standOutcomes(nextState);
-        for (const result of ["win", "push", "loss"]) {
-          doubleOutcomes[result] += probability * nextOutcomes[result];
+      values.double = doubleValue(state) * (1 - dealerNaturalProbability) - dealerNaturalProbability;
+      outcomeProbabilities.double = includeDealerNatural(doubleOutcomes(state));
+    }
+  }
+
+  let splitOutcomeProbabilities = null;
+  const pair = cards.length === 2 && cards[0].rank === cards[1].rank;
+  if (pair && options.splitAllowed && !options.afterSplit && dealerNaturalProbability === 0) {
+    const splitHandState = stateForCards([cards[0]]);
+    const canDoubleAfterSplit = options.doubleAllowed && options.dasRule === "allowed";
+    splitOutcomeProbabilities = {win: 0, push: 0, loss: 0};
+    for (let index = 0; index < rankProbabilities.length; index++) {
+      const firstDrawState = addCard(splitHandState, index);
+      let handOutcomes;
+      if (cards[0].rank === "A" || bestTotal(firstDrawState) >= 21) {
+        handOutcomes = standOutcomes(firstDrawState);
+      } else {
+        const standValueForHand = standValue(firstDrawState);
+        const hitValueForHand = hitValue(firstDrawState);
+        handOutcomes = standValueForHand >= hitValueForHand
+          ? standOutcomes(firstDrawState)
+          : hitOutcomes(firstDrawState, optimalOutcomes);
+        if (canDoubleAfterSplit) {
+          const doubleValueForHand = doubleValue(firstDrawState);
+          if (doubleValueForHand > Math.max(standValueForHand, hitValueForHand)) {
+            handOutcomes = doubleOutcomes(firstDrawState);
+          }
         }
       }
-      outcomeProbabilities.double = doubleOutcomes;
+      for (const result of ["win", "push", "loss"]) {
+        splitOutcomeProbabilities[result] += rankProbabilities[index] * handOutcomes[result];
+      }
     }
   }
 
@@ -300,8 +371,13 @@ function expectedValueActionAnalysis(cards, dealer, options) {
     bestAction,
     values,
     outcomeProbabilities,
+    ...(dealerNaturalProbability > 0 ? {dealerNaturalProbability} : {}),
+    ...(splitOutcomeProbabilities ? {splitOutcomeProbabilities} : {}),
     shoe: "8-deck S17 rank probabilities (replacement approximation)",
-    unit: "initial wager"
+    unit: "initial wager",
+    ...(dealerNaturalProbability > 0
+      ? {assumption: "Dealer checks for blackjack before player actions; W/P/L includes dealer natural."}
+      : {})
   };
 }
 
@@ -350,9 +426,11 @@ function actionForContext(cards, dealer, options) {
   const result = options.afterSplit
     ? actionForSplitHand(cards, dealer, options)
     : actionFor(cards, dealer, options);
-  if (result.action !== "SPLIT" && result.alternativeAction !== "SPLIT") {
-    const analysis = expectedValueActionAnalysis(cards, dealer, options);
-    if (analysis) {
+  const analysis = expectedValueActionAnalysis(cards, dealer, options);
+  if (analysis) {
+    if (dealer.value > 9 || result.action === "SPLIT" || result.alternativeAction === "SPLIT") {
+      result.comparisonAnalysis = analysis;
+    } else {
       const chartAction = result.action;
       result.action = analysis.bestAction;
       result.analysis = analysis;
