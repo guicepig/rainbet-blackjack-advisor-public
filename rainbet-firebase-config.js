@@ -2,7 +2,7 @@
 
 window.rainbetFirebaseConfig = {
   apiKey: "AIzaSyBnhBOgSh0Nr4vTsRfwAgslGcbM9LmPIao",
-  authDomain: "rainbet-advisor-history.firebaseapp.com",
+  authDomain: "rainbet-advisor.onrender.com",
   projectId: "rainbet-advisor-history",
   appId: "1:566237267938:web:b34c695b755d4419059bbb"
 };

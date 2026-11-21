@@ -991,6 +991,19 @@ function createServer(options) {
       return;
     }
 
+    if ((pathname === "/__/auth/handler" || pathname.startsWith("/__/auth/")) &&
+        (request.method === "GET" || request.method === "HEAD")) {
+      const target = "https://rainbet-advisor-history.firebaseapp.com" +
+        pathname + (requestUrl.search || "");
+      response.writeHead(302, {
+        "Cache-Control": "no-store",
+        "Location": target,
+        "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'"
+      });
+      response.end(request.method === "HEAD" ? undefined : "");
+      return;
+    }
+
     if ((pathname === "/" || pathname === "/rainbet-original-blackjack-advisor.html") &&
         (request.method === "GET" || request.method === "HEAD")) {
       try {
