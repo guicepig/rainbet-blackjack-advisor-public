@@ -815,7 +815,7 @@ test("Google sign-in supports mobile redirect and recovers popup-blocked desktop
   assert.match(moduleSource, /function shouldUseGoogleSignInRedirect\(\)/);
   assert.match(moduleSource, /authSdk\.signInWithRedirect\(auth, provider\)/);
   assert.match(moduleSource, /authSdk\.signInWithPopup\(auth, provider\)/);
-  assert.match(moduleSource, /error\.code !== "auth\/popup-blocked"/);
+  assert.match(moduleSource, /Allow popups for this site/);
   assert.match(moduleSource, /authSdk\.getRedirectResult\(auth\)/);
   assert.match(moduleSource, /status: "auth-error"/);
 });

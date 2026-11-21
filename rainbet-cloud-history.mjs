@@ -61,9 +61,12 @@ async function initializeCloudHistory() {
         try {
           credential = await authSdk.signInWithPopup(auth, provider);
         } catch (error) {
-          if (!error || error.code !== "auth/popup-blocked") throw error;
-          await authSdk.signInWithRedirect(auth, provider);
-          return {redirecting: true};
+          if (error && error.code === "auth/popup-blocked") {
+            throw Object.assign(new Error("Allow popups for this site, then try Sign in with Google again."), {
+              code: "auth/popup-blocked"
+            });
+          }
+          throw error;
         }
         const accountInfo = authSdk.getAdditionalUserInfo(credential);
         return {isNewUser: Boolean(accountInfo && accountInfo.isNewUser)};
