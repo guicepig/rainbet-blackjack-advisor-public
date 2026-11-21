@@ -594,6 +594,9 @@
     .advisor-wager-result button { margin: 0; white-space: nowrap; }
     .advisor-wager-guidance { margin: 7px 0; color: #d6e5d9; font-size: .76rem; line-height: 1.45; }
     .advisor-wager-history { margin: 7px 0; padding: 8px 10px; border-left: 2px solid rgba(160, 205, 168, .56); background: rgba(5, 14, 8, .25); color: #bbcabd; font-size: .68rem; line-height: 1.4; }
+    .advisor-wager-details { margin-top: 8px; border-top: 1px solid rgba(160, 205, 168, .16); }
+    .advisor-wager-details summary { padding: 9px 0 2px; color: #d0e6d5; font-size: .72rem; font-weight: 800; cursor: pointer; }
+    .advisor-wager-details[open] summary { margin-bottom: 6px; }
     .advisor-pattern-card { margin: 10px 0 0; padding: 12px; border: 1px solid rgba(152, 187, 221, .32); border-radius: 14px; background: linear-gradient(145deg, rgba(20, 32, 47, .8), rgba(11, 19, 29, .72)); }
     .advisor-pattern-card h4 { margin: 0; color: #e5f0ff; font-size: .88rem; }
     .advisor-pattern-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -1604,6 +1607,7 @@
           <div class="advisor-decision-metric move-metric">
             <span>Recommended move</span>
             <strong id="primaryMove">CHECKING</strong>
+            <button type="button" class="secondary copy-advice-button" id="copyAdviceSummary" hidden>Copy summary</button>
           </div>
           <div class="advisor-decision-metric stake-metric">
             <span>Next-hand stake</span>
@@ -1617,13 +1621,7 @@
           </div>
         </div>
         <div>
-          <p class="advisor-live-label">Recommended move</p>
-          <div class="advisor-live-action-row">
-            <p class="advisor-live-action" id="action">CHECKING</p>
-            <button type="button" class="secondary copy-advice-button" id="copyAdviceSummary" hidden>Copy summary</button>
-          </div>
-        </div>
-        <div>
+          <p class="visually-hidden" id="action" hidden>CHECKING</p>
           <p class="advisor-live-hand" id="handSummary">Hard 16 vs. dealer 10</p>
           <p class="fine advisor-status" id="advisorStatus" aria-live="polite"></p>
           <details class="advisor-explanation">
@@ -1658,8 +1656,10 @@
             </div>
             <button type="button" class="secondary" id="useSuggestedWager" disabled>Use for next hand</button>
           </div>
-          <p class="advisor-wager-guidance" id="suggestedWagerText" aria-live="polite">Fictional suggestions are off. Enable them in Settings.</p>
-          <p class="advisor-wager-history" id="wagerHistorySummary" aria-live="polite">The history-based estimate appears here with its sample size and uncertainty range.</p>
+          <details class="advisor-wager-details">
+            <summary>How this stake is calculated</summary>
+            <p class="advisor-wager-guidance" id="suggestedWagerText" aria-live="polite">Fictional suggestions are off. Enable them in Settings.</p>
+            <p class="advisor-wager-history" id="wagerHistorySummary" aria-live="polite">The history-based estimate appears here with its sample size and uncertainty range.</p>
           <section class="advisor-pattern-card" aria-labelledby="outcomePatternTitle">
             <div class="advisor-pattern-heading">
               <div>
@@ -1705,6 +1705,7 @@
             </label>
           </div>
           <p class="advisor-wager-note" id="advisorWagerNote">Fictional pre-deal stake. Saved W/P/L history and validated historical patterns inform this amount; current cards affect move advice only. Split is one entered round-level result.</p>
+          </details>
         </section>
       </section>
       <div class="advisor-session-strip" aria-label="Fictional session snapshot">
@@ -6542,7 +6543,9 @@ node .\rainbet-gemini-server.cjs</code></pre>
           membershipSubscriptionStatus = payload.subscriptionStatus;
           membershipTrialAvailable = payload.trialAvailable === true;
           membershipRenewalCanceled = payload.renewalCanceled === true;
-          byId("membershipStatus").textContent = membershipTier === "paid"
+          byId("membershipStatus").textContent = payload.testAccess === true
+            ? "Free test access active. No subscription or payment is required."
+            : membershipTier === "paid"
             ? membershipSubscriptionStatus === "trialing"
               ? "Your $1 intro access is active until " + new Date(payload.trialExpiresAt).toLocaleDateString() +
                 (membershipRenewalCanceled

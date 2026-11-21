@@ -2293,6 +2293,8 @@ test("8-deck expected-value analysis compares available actions with a replaceme
 
 test("recommendation panel exposes visible win push and loss percentages", () => {
   assert.match(html, /id="currentHandOutcomeCard"/);
+  assert.match(html, /advisor-wager-details/);
+  assert.match(html, /How this stake is calculated/);
   assert.match(html, /id="primaryMove"/);
   assert.match(html, /id="primaryStake"/);
   assert.match(html, /id="primaryWinChance"/);
